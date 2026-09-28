@@ -278,15 +278,17 @@ export function AppShellChrome() {
         )}
       </nav>
 
-      <button
-        type="button"
-        disabled
-        title="Financeiro (em breve)"
-        className={`flex cursor-not-allowed items-center gap-2.5 rounded-md py-2 text-sm text-muted-foreground/50 ${collapsed ? "justify-center px-0" : "px-2.5"}`}
-      >
-        <Banknote className="size-4 shrink-0" />
-        {!collapsed && "Financeiro"}
-      </button>
+      {isAdmin && (
+        <button
+          type="button"
+          disabled
+          title="Financeiro (em breve)"
+          className={`flex cursor-not-allowed items-center gap-2.5 rounded-md py-2 text-sm text-muted-foreground/50 ${collapsed ? "justify-center px-0" : "px-2.5"}`}
+        >
+          <Banknote className="size-4 shrink-0" />
+          {!collapsed && "Financeiro"}
+        </button>
+      )}
 
       <div className="border-t border-sidebar-border pt-3">
         {!collapsed && (

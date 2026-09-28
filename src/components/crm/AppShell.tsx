@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
@@ -17,7 +17,8 @@ import {
   ChevronDown,
   ClipboardList,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { supabase } from "@/integrations/supabase/client";
 import { fetchFunnels, fetchMyRole } from "@/lib/crm";
@@ -41,17 +42,16 @@ const MAX_W = 320;
 const DEFAULT_W = 240;
 const SNAP_COLLAPSED = 72; // abaixo disso → colapsa para ícones
 
-export function AppShell({
-  title,
-  subtitle,
-  actions,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
+// Slots do header ficam no shell persistente; cada página porta seu
+// título/ações para dentro deles em vez de remontar o shell inteiro.
+const HeaderSlotContext = createContext<{ titleSlot: HTMLDivElement | null; actionsSlot: HTMLDivElement | null }>({
+  titleSlot: null,
+  actionsSlot: null,
+});
+
+// Chrome persistente: sidebar, header e drawer mobile. Renderizado uma única
+// vez pelo layout `_authenticated`, então não remonta a cada navegação.
+export function AppShellChrome() {
   const navigate = useNavigate();
   const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
   const { data: funnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
@@ -124,6 +124,10 @@ export function AppShell({
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   };
+
+  const [titleSlot, setTitleSlot] = useState<HTMLDivElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
+  const slotValue = useMemo(() => ({ titleSlot, actionsSlot }), [titleSlot, actionsSlot]);
 
   const sidebarContent = (
     <>
@@ -284,12 +288,10 @@ export function AppShell({
             >
               <PanelLeftOpen className="size-5" />
             </button>
-            <div>
-              <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-              {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-            </div>
+            {/* preenchido via portal pela página atual (AppShell) */}
+            <div ref={setTitleSlot} />
           </div>
-          <div className="flex items-center gap-2">{actions}</div>
+          <div ref={setActionsSlot} className="flex items-center gap-2" />
         </header>
 
         {/* nav mobile scroll (fallback rápido) */}
@@ -306,7 +308,9 @@ export function AppShell({
           ))}
         </nav>
 
-        <div className="px-5 py-6 md:px-8">{children}</div>
+        <HeaderSlotContext.Provider value={slotValue}>
+          <Outlet />
+        </HeaderSlotContext.Provider>
       </main>
 
       {mustChangePassword && user && <ForcePasswordDialog userId={user.id} />}
@@ -324,5 +328,36 @@ export function AppShell({
         </svg>
       </a>
     </div>
+  );
+}
+
+// Usado por cada rota: porta título/ações para os slots fixos do shell
+// persistente em vez de renderizar sidebar/header próprios.
+export function AppShell({
+  title,
+  subtitle,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const { titleSlot, actionsSlot } = useContext(HeaderSlotContext);
+
+  return (
+    <>
+      {titleSlot &&
+        createPortal(
+          <>
+            <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+          </>,
+          titleSlot,
+        )}
+      {actionsSlot && actions && createPortal(actions, actionsSlot)}
+      <div className="px-5 py-6 md:px-8">{children}</div>
+    </>
   );
 }

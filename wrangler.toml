@@ -1,0 +1,16 @@
+name = "g-crm-bullbank"
+main = ".output/server/index.mjs"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Assets estáticos gerados pelo build
+[assets]
+directory = ".output/public"
+
+# Variáveis de ambiente de produção — configure via dashboard ou wrangler secret
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_PUBLISHABLE_KEY
+[vars]
+SUPABASE_PROJECT_ID      = ""
+SUPABASE_URL             = ""
+SUPABASE_PUBLISHABLE_KEY = ""

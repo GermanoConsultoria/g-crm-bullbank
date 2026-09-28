@@ -1,5 +1,5 @@
 -- =============================================================
--- SEED — Blue Moon CRM  (dados fictícios para visualização)
+-- SEED — BullBank CRM  (dados fictícios para visualização)
 -- Rode no SQL Editor do Supabase (Dashboard → SQL Editor)
 -- ATENÇÃO: apaga todos os dados existentes antes de inserir.
 -- =============================================================
@@ -54,21 +54,21 @@ INSERT INTO auth.users (
   confirmation_token, recovery_token, email_change_token_new, email_change
 ) VALUES
   (uid_admin, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-   'admin@bluemoon.com', crypt('senha123', gen_salt('bf')), now(),
+   'admin@bullbank.com', crypt('senha123', gen_salt('bf')), now(),
    '{"full_name":"Rafael Souza"}'::jsonb, now(), now(), '', '', '', ''),
   (uid_vend1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-   'camila@bluemoon.com', crypt('senha123', gen_salt('bf')), now(),
+   'camila@bullbank.com', crypt('senha123', gen_salt('bf')), now(),
    '{"full_name":"Camila Torres"}'::jsonb, now(), now(), '', '', '', ''),
   (uid_vend2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-   'lucas@bluemoon.com', crypt('senha123', gen_salt('bf')), now(),
+   'lucas@bullbank.com', crypt('senha123', gen_salt('bf')), now(),
    '{"full_name":"Lucas Mendes"}'::jsonb, now(), now(), '', '', '', '');
 
 -- ── 3. PROFILES ────────────────────────────────────────────
 -- O trigger on_auth_user_created já criou os profiles; apenas atualiza com dados completos.
 INSERT INTO public.profiles (id, full_name, email, commission_rate, monthly_goal) VALUES
-  (uid_admin, 'Rafael Souza',  'admin@bluemoon.com',  8,  80000),
-  (uid_vend1, 'Camila Torres', 'camila@bluemoon.com', 6,  60000),
-  (uid_vend2, 'Lucas Mendes',  'lucas@bluemoon.com',  5,  50000)
+  (uid_admin, 'Rafael Souza',  'admin@bullbank.com',  8,  80000),
+  (uid_vend1, 'Camila Torres', 'camila@bullbank.com', 6,  60000),
+  (uid_vend2, 'Lucas Mendes',  'lucas@bullbank.com',  5,  50000)
 ON CONFLICT (id) DO UPDATE
   SET full_name       = EXCLUDED.full_name,
       email           = EXCLUDED.email,
@@ -143,8 +143,8 @@ INSERT INTO public.tasks (owner_id, deal_id, client_id, title, description, due_
   (uid_vend2, NULL, NULL, 'Prospectar clientes do setor saúde','Meta: 5 contatos novos até sexta.',                        current_date + 4,  'baixa', false, NULL);
 
 RAISE NOTICE '✅ Seed concluído! Usuários criados:';
-RAISE NOTICE '   admin@bluemoon.com  / senha123  (admin)';
-RAISE NOTICE '   camila@bluemoon.com / senha123  (vendedor)';
-RAISE NOTICE '   lucas@bluemoon.com  / senha123  (vendedor)';
+RAISE NOTICE '   admin@bullbank.com  / senha123  (admin)';
+RAISE NOTICE '   camila@bullbank.com / senha123  (vendedor)';
+RAISE NOTICE '   lucas@bullbank.com  / senha123  (vendedor)';
 
 END $$;

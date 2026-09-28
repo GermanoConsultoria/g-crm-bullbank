@@ -19,8 +19,8 @@ type FormErrors = Partial<Record<"email" | "password", string>>;
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Bem-vindo - Blue Moon CRM" },
-      { name: "description", content: "Acesse o Blue Moon CRM." },
+      { title: "Bem-vindo - BullBank CRM" },
+      { name: "description", content: "Acesse o BullBank CRM." },
     ],
   }),
   component: AuthPage,
@@ -82,9 +82,9 @@ function AuthPage() {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-[#0d1117] border-r border-white/5">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-white">
-            <img src="/brand/logo-icon.png" alt="Blue Moon CRM" className="size-6 object-contain" />
+            <img src="/brand/logo-icon.png" alt="BullBank CRM" className="size-6 object-contain" />
           </div>
-          <span className="text-white font-semibold tracking-tight">Blue Moon CRM</span>
+          <span className="text-white font-semibold tracking-tight">BullBank CRM</span>
         </div>
 
         <div>
@@ -100,7 +100,7 @@ function AuthPage() {
           </div>
         </div>
 
-        <p className="text-xs text-white/20">© 2026 Blue Moon CRM</p>
+        <p className="text-xs text-white/20">© 2026 BullBank CRM</p>
       </div>
 
       {/* Right panel — form */}
@@ -109,9 +109,9 @@ function AuthPage() {
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2 mb-8">
             <div className="flex size-7 items-center justify-center overflow-hidden rounded-lg bg-white">
-              <img src="/brand/logo-icon.png" alt="Blue Moon CRM" className="size-5 object-contain" />
+              <img src="/brand/logo-icon.png" alt="BullBank CRM" className="size-5 object-contain" />
             </div>
-            <span className="text-white font-semibold">Blue Moon CRM</span>
+            <span className="text-white font-semibold">BullBank CRM</span>
           </div>
 
           <div className="mb-8">

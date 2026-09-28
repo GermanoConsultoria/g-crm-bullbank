@@ -80,13 +80,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Pipeline CRM — Funil, tarefas e comissões" },
+      { title: "BullBank CRM — Funil, tarefas e comissões" },
       {
         name: "description",
         content:
           "CRM minimalista para gerenciar clientes, funil de vendas kanban, tarefas, relatórios de conversão e comissões.",
       },
-      { property: "og:title", content: "Pipeline CRM" },
+      { property: "og:title", content: "BullBank CRM" },
       {
         property: "og:description",
         content: "Gestão comercial completa: clientes, funil kanban, tarefas, relatórios e comissões.",

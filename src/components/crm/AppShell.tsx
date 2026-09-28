@@ -133,11 +133,11 @@ export function AppShellChrome() {
     <>
       <div className={`pb-6 flex ${collapsed ? "flex-col items-center gap-2 px-0" : "items-center gap-2 px-2"}`}>
         <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-          <img src="/brand/logo-icon.png" alt="Blue Moon CRM" className="size-6 object-contain" />
+          <img src="/brand/logo-icon.png" alt="BullBank CRM" className="size-6 object-contain" />
         </div>
         {!collapsed && (
           <div className="flex-1">
-            <p className="text-sm font-semibold tracking-tight text-sidebar-foreground">Blue Moon CRM</p>
+            <p className="text-sm font-semibold tracking-tight text-sidebar-foreground">BullBank CRM</p>
             <p className="text-xs text-muted-foreground">Gestão comercial</p>
           </div>
         )}

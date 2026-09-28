@@ -1,4 +1,4 @@
-# Blue Moon CRM
+# BullBank CRM
 
 Crie um crm, minimalista, no tema escuro, com cores azul, branco e cinza
 

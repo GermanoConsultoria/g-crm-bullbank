@@ -5,6 +5,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AppShell } from "@/components/crm/AppShell";
 import { currency, fetchDeals, fetchStages, fetchTasks, fetchProfiles, shortDate } from "@/lib/crm";
 
+type DashboardSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
@@ -13,6 +15,9 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
       { property: "og:title", content: "Dashboard" },
       { property: "og:description", content: "Visão geral do funil, negócios ganhos, metas e tarefas do time comercial." },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
   }),
   component: Dashboard,
 });
@@ -28,10 +33,15 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 function Dashboard() {
-  const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { vendorId } = Route.useSearch();
+  const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
   const { data: stages = [] } = useQuery({ queryKey: ["stages"], queryFn: fetchStages });
-  const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
-  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+
+  const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
+  const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
+  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
 
   const open = deals.filter((d) => d.status === "aberto");
   const won = deals.filter((d) => d.status === "ganho");
@@ -46,8 +56,13 @@ function Dashboard() {
     valor: open.filter((d) => d.stage_id === stage.id).reduce((s, d) => s + Number(d.value), 0),
   }));
 
+  const sellerName = vendorId ? profiles[0]?.full_name || profiles[0]?.email : null;
+
   return (
-    <AppShell title="Dashboard" subtitle="Panorama do time comercial">
+    <AppShell
+      title="Dashboard"
+      subtitle={sellerName ? `Panorama de ${sellerName}` : "Panorama do time comercial"}
+    >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="Pipeline aberto" value={currency(openValue)} hint={`${open.length} negócios em andamento`} />
         <Kpi label="Ganho" value={currency(wonValue)} hint={`${won.length} negócios fechados`} />

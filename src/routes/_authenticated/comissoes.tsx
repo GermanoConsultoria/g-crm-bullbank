@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { commissionFor, currency, fetchDeals, fetchMyRole, fetchProfiles } from "@/lib/crm";
 
+type ComissoesSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/comissoes")({
   head: () => ({
     meta: [
@@ -19,13 +21,18 @@ export const Route = createFileRoute("/_authenticated/comissoes")({
       { property: "og:description", content: "Cálculo de comissão por vendedor com taxa configurável e acompanhamento de meta." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): ComissoesSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
+  }),
   component: CommissionsPage,
 });
 
 function CommissionsPage() {
+  const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
-  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
   const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
   const { data: user } = useQuery({
     queryKey: ["auth-user"],

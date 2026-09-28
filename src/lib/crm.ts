@@ -26,6 +26,7 @@ export type Client = {
 
 export type Funnel = {
   id: string;
+  owner_id: string;
   name: string;
   position: number;
 };

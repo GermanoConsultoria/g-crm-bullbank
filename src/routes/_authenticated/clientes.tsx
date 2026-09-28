@@ -29,7 +29,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchClients, fetchLeadTypes, shortDate, type Client } from "@/lib/crm";
+import { fetchClients, fetchLeadTypes, fetchProfiles, shortDate, type Client } from "@/lib/crm";
+
+type ClientesSearch = { vendorId?: string | undefined };
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   head: () => ({
@@ -39,6 +41,9 @@ export const Route = createFileRoute("/_authenticated/clientes")({
       { property: "og:title", content: "Clientes" },
       { property: "og:description", content: "Cadastro de clientes e leads com origem, contato e tipo de lead." },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): ClientesSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
   }),
   component: ClientsPage,
 });
@@ -64,9 +69,13 @@ const empty: FormState = {
 };
 
 function ClientsPage() {
+  const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
-  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
+  const { data: allClients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: !!vendorId });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
+  const clients = vendorId ? allClients.filter((c) => c.owner_id === vendorId) : allClients;
+  const sellerName = vendorId ? allProfiles.find((p) => p.id === vendorId)?.full_name : null;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState<FormState>(empty);
@@ -85,7 +94,7 @@ function ClientsPage() {
         return;
       }
       const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from("clients").insert({ ...form, owner_id: userData.user!.id });
+      const { error } = await supabase.from("clients").insert({ ...form, owner_id: vendorId ?? userData.user!.id });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -131,7 +140,7 @@ function ClientsPage() {
   return (
     <AppShell
       title="Clientes"
-      subtitle={`${clients.length} cadastros`}
+      subtitle={sellerName ? `${sellerName} · ${clients.length} cadastros` : `${clients.length} cadastros`}
       actions={
         <>
           <Input

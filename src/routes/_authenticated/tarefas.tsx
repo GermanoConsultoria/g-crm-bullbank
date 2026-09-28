@@ -32,6 +32,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { fetchDeals, fetchProfiles, fetchTasks, shortDate, type Task } from "@/lib/crm";
 
+type TarefasSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({
     meta: [
@@ -40,6 +42,9 @@ export const Route = createFileRoute("/_authenticated/tarefas")({
       { property: "og:title", content: "Tarefas" },
       { property: "og:description", content: "Tarefas comerciais com prazo, prioridade e acompanhamento da produtividade do vendedor." },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): TarefasSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
   }),
   component: TasksPage,
 });
@@ -161,10 +166,14 @@ function CalendarView({
 
 // ── Página principal ────────────────────────────────────────
 function TasksPage() {
+  const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
-  const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
-  const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
-  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
+  const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
+  const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
+  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
   const [view, setView] = useState<"lista" | "calendario">("lista");
   const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -198,7 +207,7 @@ function TasksPage() {
       }
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase.from("tasks").insert({
-        owner_id: userData.user!.id,
+        owner_id: vendorId ?? userData.user!.id,
         title: form.title,
         description: form.description || null,
         due_date: form.due_date || null,

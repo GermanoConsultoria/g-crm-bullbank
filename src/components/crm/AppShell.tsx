@@ -16,16 +16,20 @@ import {
   ChevronRight,
   ChevronDown,
   ClipboardList,
+  Folder,
 } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { supabase } from "@/integrations/supabase/client";
-import { fetchFunnels, fetchMyRole } from "@/lib/crm";
+import { fetchFunnels, fetchMyRole, fetchProfiles, fetchUserRoles } from "@/lib/crm";
 import { getSupportUrl } from "@/lib/support";
 import { ForcePasswordDialog } from "@/components/crm/ForcePasswordDialog";
 
-const nav = [
+// Itens de trabalho de um vendedor: cadastro é sempre dele. O vendedor vê
+// esses no próprio menu; o admin só enxerga através da pasta de cada
+// vendedor (ele "controla", não cadastra em nome próprio).
+const sellerWorkItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clientes",  label: "Contatos",  icon: Users },
   { to: "/funil",     label: "Funil",     icon: KanbanSquare },
@@ -33,9 +37,19 @@ const nav = [
   { to: "/formularios", label: "Formulários", icon: ClipboardList },
   { to: "/relatorios",label: "Relatórios",icon: BarChart3 },
   { to: "/comissoes", label: "Comissões", icon: Wallet },
-  { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags, adminOnly: true },
-  { to: "/usuarios", label: "Usuários", icon: UserCog, adminOnly: true },
 ] as const;
+
+// Menu de topo do admin: visão geral (todos os vendedores somados) e as
+// páginas de gestão. Tudo mais fica dentro da pasta de cada vendedor.
+const adminTopItems = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags },
+  { to: "/usuarios", label: "Usuários", icon: UserCog },
+] as const;
+
+// Links dentro da pasta de cada vendedor no menu do admin: os mesmos itens
+// de trabalho do vendedor, navegados via ?vendorId=.
+const sellerFolderLinks = sellerWorkItems;
 
 const MIN_W = 48;   // colapsada (só ícones)
 const MAX_W = 320;
@@ -56,11 +70,24 @@ export function AppShellChrome() {
   const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
   const { data: funnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
   const [funilExpanded, setFunilExpanded] = useState(false);
-  const visibleNav = nav.filter((item) => !("adminOnly" in item && item.adminOnly) || role === "admin");
+  const isAdmin = role === "admin";
+  const visibleNav = isAdmin ? adminTopItems : sellerWorkItems;
+
   const { data: user } = useQuery({
     queryKey: ["auth-user"],
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
+  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: isAdmin });
+  const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles, enabled: isAdmin });
+  const sellers = useMemo(() => {
+    const roleByUser = new Map(userRoles.map((r) => [r.user_id, r.role]));
+    return profiles
+      // Nunca lista o próprio admin logado: a conta dele já é o topo do menu,
+      // não precisa de uma pasta separada para si mesmo.
+      .filter((p) => p.id !== user?.id && (roleByUser.get(p.id) ?? "vendedor") === "vendedor")
+      .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR", { sensitivity: "base" }));
+  }, [profiles, userRoles, user]);
+  const [expandedSellerId, setExpandedSellerId] = useState<string | null>(null);
   const { data: mustChangePassword } = useQuery({
     queryKey: ["force-password-change", user?.id],
     queryFn: async () => {
@@ -203,6 +230,52 @@ export function AppShellChrome() {
             </Link>
           );
         })}
+
+        {isAdmin && !collapsed && (
+          <div className="mt-2 border-t border-sidebar-border pt-2">
+            <p className="px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Vendedores
+            </p>
+            <div className="mt-1 flex flex-col gap-0.5">
+              {sellers.map((seller) => {
+                const sellerOpen = expandedSellerId === seller.id;
+                return (
+                  <div key={seller.id}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      onClick={() => setExpandedSellerId(sellerOpen ? null : seller.id)}
+                    >
+                      <Folder className="size-4 shrink-0" />
+                      <span className="flex-1 truncate text-left">{seller.full_name || seller.email || "Vendedor"}</span>
+                      {sellerOpen ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+                    </button>
+                    {sellerOpen && (
+                      <div className="ml-4 flex flex-col gap-0.5 border-l border-sidebar-border py-1 pl-3">
+                        {sellerFolderLinks.map((item) => (
+                          <Link
+                            key={item.to}
+                            to={item.to}
+                            search={{ vendorId: seller.id }}
+                            className="flex items-center gap-2 truncate rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-medium" }}
+                            onClick={() => setMobileOpen(false)}
+                          >
+                            <item.icon className="size-3.5 shrink-0" />
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {sellers.length === 0 && (
+                <p className="px-2.5 py-1 text-xs text-muted-foreground">Nenhum vendedor cadastrado</p>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
       <button

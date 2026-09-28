@@ -26,7 +26,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { currency, fetchDeals, fetchFunnels, fetchStages, type Funnel } from "@/lib/crm";
+import { currency, fetchDeals, fetchFunnels, fetchProfiles, fetchStages, type Funnel } from "@/lib/crm";
+
+type FunilIndexSearch = { vendorId?: string | undefined };
 
 export const Route = createFileRoute("/_authenticated/funil/")({
   head: () => ({
@@ -37,15 +39,23 @@ export const Route = createFileRoute("/_authenticated/funil/")({
       { property: "og:description", content: "Cadastro dos funis de vendas. Selecione um para abrir o quadro kanban." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): FunilIndexSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
+  }),
   component: FunnelListPage,
 });
 
 function FunnelListPage() {
+  const { vendorId } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: funnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
+  const { data: allFunnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
   const { data: stages = [] } = useQuery({ queryKey: ["stages"], queryFn: fetchStages });
-  const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: !!vendorId });
+  const funnels = vendorId ? allFunnels.filter((f) => f.owner_id === vendorId) : allFunnels;
+  const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
+  const sellerName = vendorId ? allProfiles.find((p) => p.id === vendorId)?.full_name : null;
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Funnel | null>(null);
@@ -66,7 +76,10 @@ function FunnelListPage() {
         return;
       }
       const nextPosition = Math.max(0, ...funnels.map((f) => f.position)) + 1;
-      const { error } = await supabase.from("funnels").insert({ name, position: nextPosition });
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("funnels")
+        .insert({ name, position: nextPosition, owner_id: vendorId ?? userData.user!.id });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -100,7 +113,11 @@ function FunnelListPage() {
   return (
     <AppShell
       title="Funis de vendas"
-      subtitle={`${funnels.length} cadastrado${funnels.length === 1 ? "" : "s"}`}
+      subtitle={
+        sellerName
+          ? `${sellerName} · ${funnels.length} cadastrado${funnels.length === 1 ? "" : "s"}`
+          : `${funnels.length} cadastrado${funnels.length === 1 ? "" : "s"}`
+      }
       actions={
         <>
           <Dialog
@@ -196,9 +213,12 @@ function FunnelListPage() {
               role="button"
               tabIndex={0}
               className="panel flex cursor-pointer items-center gap-2 p-4 transition-colors hover:bg-secondary/40"
-              onClick={() => navigate({ to: "/funil/$funnelId", params: { funnelId: funnel.id } })}
+              onClick={() =>
+                navigate({ to: "/funil/$funnelId", params: { funnelId: funnel.id }, search: { vendorId } })
+              }
               onKeyDown={(e) => {
-                if (e.key === "Enter") navigate({ to: "/funil/$funnelId", params: { funnelId: funnel.id } });
+                if (e.key === "Enter")
+                  navigate({ to: "/funil/$funnelId", params: { funnelId: funnel.id }, search: { vendorId } });
               }}
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

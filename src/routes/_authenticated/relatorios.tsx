@@ -26,6 +26,8 @@ function filterByPeriod(deals: Deal[], period: Period): Deal[] {
   });
 }
 
+type RelatoriosSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({
     meta: [
@@ -34,6 +36,9 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
       { property: "og:title", content: "Relatórios" },
       { property: "og:description", content: "Análise de conversão por tipo de lead e desempenho de cada vendedor." },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): RelatoriosSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
   }),
   component: ReportsPage,
 });
@@ -45,11 +50,13 @@ const PERIODS: { value: Period; label: string }[] = [
 ];
 
 function ReportsPage() {
+  const { vendorId } = Route.useSearch();
   const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
-  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const [period, setPeriod] = useState<Period>("mes");
 
-  const deals = filterByPeriod(allDeals, period);
+  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
+  const deals = filterByPeriod(vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals, period);
 
   const leadTypes = Array.from(new Set(deals.map((d) => d.lead_type)));
   const byLead = leadTypes

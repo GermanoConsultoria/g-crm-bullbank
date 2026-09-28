@@ -47,6 +47,8 @@ const TASK_PRIORITIES = [
   { value: "baixa", label: "Baixa" },
 ];
 
+type FunilBoardSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/funil/$funnelId")({
   head: () => ({
     meta: [
@@ -56,19 +58,27 @@ export const Route = createFileRoute("/_authenticated/funil/$funnelId")({
       { property: "og:description", content: "Quadro kanban com etapas editáveis para acompanhar cada negócio do funil." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): FunilBoardSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
+  }),
   component: FunnelBoardPage,
 });
 
 function FunnelBoardPage() {
   const { funnelId } = Route.useParams();
+  const { vendorId } = Route.useSearch();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: funnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
   const { data: allStages = [] } = useQuery({ queryKey: ["stages"], queryFn: fetchStages });
-  const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
-  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
+  const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { data: allClients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
-  const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
+  const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
+
+  const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
+  const clients = vendorId ? allClients.filter((c) => c.owner_id === vendorId) : allClients;
+  const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
 
   const funnel = funnels.find((f) => f.id === funnelId);
   const stages = allStages.filter((s) => s.funnel_id === funnelId);
@@ -100,7 +110,7 @@ function FunnelBoardPage() {
       if (!taskDeal) return;
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase.from("tasks").insert({
-        owner_id: userData.user!.id,
+        owner_id: vendorId ?? userData.user!.id,
         deal_id: taskDeal.id,
         client_id: taskDeal.client_id,
         title: taskForm.title,
@@ -148,7 +158,7 @@ function FunnelBoardPage() {
       }
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase.from("deals").insert({
-        owner_id: userData.user!.id,
+        owner_id: vendorId ?? userData.user!.id,
         title: form.title,
         value: Number(form.value || 0),
         client_id: form.client_id || null,

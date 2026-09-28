@@ -32,6 +32,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchFormSubmissions, shortDate, type FormSubmission } from "@/lib/crm";
 import { FORM_TEMPLATES, type FormSubmissionType } from "@/lib/form-templates";
 
+type FormulariosSearch = { vendorId?: string | undefined };
+
 export const Route = createFileRoute("/_authenticated/formularios")({
   head: () => ({
     meta: [
@@ -41,14 +43,19 @@ export const Route = createFileRoute("/_authenticated/formularios")({
       { property: "og:description", content: "Registros dos formulários de parceiros e clientes preenchidos pela equipe." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): FormulariosSearch => ({
+    vendorId: typeof search["vendorId"] === "string" ? (search["vendorId"] as string) : undefined,
+  }),
   component: FormulariosPage,
 });
 
 const EMPTY_FORM: Record<string, string> = {};
 
 function FormulariosPage() {
+  const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
-  const { data: submissions = [] } = useQuery({ queryKey: ["form-submissions"], queryFn: fetchFormSubmissions });
+  const { data: allSubmissions = [] } = useQuery({ queryKey: ["form-submissions"], queryFn: fetchFormSubmissions });
+  const submissions = vendorId ? allSubmissions.filter((s) => s.owner_id === vendorId) : allSubmissions;
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FormSubmission | null>(null);
@@ -80,7 +87,7 @@ function FormulariosPage() {
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("form_submissions")
-        .insert({ ...payload, owner_id: userData.user!.id });
+        .insert({ ...payload, owner_id: vendorId ?? userData.user!.id });
       if (error) throw error;
     },
     onSuccess: () => {

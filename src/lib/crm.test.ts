@@ -1,0 +1,363 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { commissionFor, filterByPeriod, summarizeDeals, type Deal, type Profile } from "@/lib/crm";
+
+// Fixture comum: negócios de dois vendedores, com um pouco de tudo
+// (aberto/ganho/perdido, valores numéricos e em string, datas distintas)
+// para exercitar os mesmos casos que as telas reais encontram.
+const profileA: Profile = {
+  id: "seller-a",
+  full_name: "Vendedor A",
+  email: "a@example.com",
+  commission_rate: 10,
+  monthly_goal: 1000,
+  is_active: true,
+  force_password_change: false,
+};
+
+const profileB: Profile = {
+  id: "seller-b",
+  full_name: "Vendedor B",
+  email: "b@example.com",
+  commission_rate: 5,
+  monthly_goal: 0,
+  is_active: true,
+  force_password_change: false,
+};
+
+function deal(partial: Partial<Deal> & { id: string; owner_id: string }): Deal {
+  return {
+    client_id: null,
+    stage_id: null,
+    title: "Negócio",
+    value: 0,
+    status: "aberto",
+    lead_type: "Indicação",
+    closed_at: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    ...partial,
+  };
+}
+
+const deals: Deal[] = [
+  deal({ id: "d1", owner_id: "seller-a", status: "ganho", value: 300 }),
+  deal({ id: "d2", owner_id: "seller-a", status: "ganho", value: 200 }),
+  deal({ id: "d3", owner_id: "seller-a", status: "perdido", value: 999 }),
+  deal({ id: "d4", owner_id: "seller-a", status: "aberto", value: 150 }),
+  deal({ id: "d5", owner_id: "seller-b", status: "ganho", value: 400 }),
+  // value como string (vem do input de formulário sem coerção prévia em alguns pontos)
+  deal({ id: "d6", owner_id: "seller-b", status: "ganho", value: "100" as unknown as number }),
+];
+
+describe("commissionFor() — comportamento atual (caracterização)", () => {
+  it("soma apenas os negócios ganhos do próprio vendedor", () => {
+    const stats = commissionFor(deals, profileA);
+    expect(stats.wonCount).toBe(2);
+    expect(stats.total).toBe(500); // 300 + 200, ignora perdido/aberto e o outro vendedor
+  });
+
+  it("calcula a comissão como percentual do total ganho", () => {
+    const stats = commissionFor(deals, profileA);
+    expect(stats.commission).toBe(50); // 500 * 10%
+  });
+
+  it("soma valores em string via coerção Number()", () => {
+    const stats = commissionFor(deals, profileB);
+    expect(stats.total).toBe(500); // 400 + Number("100")
+    expect(stats.commission).toBe(25); // 500 * 5%
+  });
+
+  it("não aplica filtro de período — soma o histórico completo do vendedor", () => {
+    const antigo = deal({
+      id: "d-antigo",
+      owner_id: "seller-a",
+      status: "ganho",
+      value: 1000,
+      closed_at: "2020-01-01T00:00:00.000Z",
+    });
+    const stats = commissionFor([...deals, antigo], profileA);
+    // Pendência de negócio registrada na Fase 0: commissionFor nunca filtrou
+    // por período, mesmo o nome do campo sendo "monthly_goal". Preservado de propósito.
+    expect(stats.total).toBe(1500);
+  });
+
+  it("goalProgress é 0 quando monthly_goal é 0, mesmo havendo receita", () => {
+    const stats = commissionFor(deals, profileB);
+    expect(stats.goalProgress).toBe(0);
+  });
+
+  it("goalProgress é travado em 100 quando o total ganho supera a meta", () => {
+    const stats = commissionFor(deals, profileA); // total 500, meta 1000 -> 50%
+    expect(stats.goalProgress).toBe(50);
+
+    const metaBaixa: Profile = { ...profileA, monthly_goal: 100 };
+    expect(commissionFor(deals, metaBaixa).goalProgress).toBe(100); // travado, não 500%
+  });
+
+  it("retorna zero em todos os campos quando o vendedor não tem negócios", () => {
+    const semNegocios: Profile = { ...profileA, id: "seller-sem-negocio" };
+    const stats = commissionFor(deals, semNegocios);
+    expect(stats).toEqual({ wonCount: 0, total: 0, commission: 0, goalProgress: 0 });
+  });
+
+  it("retorna zero com array de negócios vazio", () => {
+    const stats = commissionFor([], profileA);
+    expect(stats).toEqual({ wonCount: 0, total: 0, commission: 0, goalProgress: 0 });
+  });
+});
+
+describe("summarizeDeals() — reproduz as fórmulas de cada tela", () => {
+  it("sem ownerId: soma todos os vendedores (igual ao card 'Receita ganha' de comissoes.tsx)", () => {
+    const summary = summarizeDeals(deals);
+    expect(summary).toEqual({
+      openCount: 1,
+      wonCount: 4,
+      lostCount: 1,
+      openValue: 150,
+      wonValue: 1000,
+      conversion: 80,
+    });
+  });
+
+  it("com ownerId: reproduz o total ganho por vendedor usado em commissionFor/dashboard", () => {
+    expect(summarizeDeals(deals, { ownerId: "seller-a" }).wonValue).toBe(500);
+    expect(summarizeDeals(deals, { ownerId: "seller-b" }).wonValue).toBe(500);
+  });
+
+  it("array vazio retorna todos os campos zerados", () => {
+    expect(summarizeDeals([])).toEqual({
+      openCount: 0,
+      wonCount: 0,
+      lostCount: 0,
+      openValue: 0,
+      wonValue: 0,
+      conversion: 0,
+    });
+  });
+
+  it("ownerId sem nenhum negócio correspondente retorna zerado, não undefined/NaN", () => {
+    expect(summarizeDeals(deals, { ownerId: "sem-negocios" })).toEqual({
+      openCount: 0,
+      wonCount: 0,
+      lostCount: 0,
+      openValue: 0,
+      wonValue: 0,
+      conversion: 0,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Réplicas fiéis das fórmulas hoje inline em dashboard.tsx, relatorios.tsx e
+// comissoes.tsx (ainda não extraídas para uma função compartilhada). Servem
+// de "golden values" para validar summarizeDeals() depois do refactor: se os
+// números abaixo continuarem idênticos quando trocarmos a implementação para
+// usar summarizeDeals(), a refatoração preservou o comportamento.
+// ---------------------------------------------------------------------------
+
+describe("dashboard.tsx — fórmulas atuais (réplica fiel, pré-refactor)", () => {
+  // Espelha dashboard.tsx:46-51
+  function dashboardKpis(scopedDeals: Deal[]) {
+    const open = scopedDeals.filter((d) => d.status === "aberto");
+    const won = scopedDeals.filter((d) => d.status === "ganho");
+    const lost = scopedDeals.filter((d) => d.status === "perdido");
+    const openValue = open.reduce((s, d) => s + Number(d.value), 0);
+    const wonValue = won.reduce((s, d) => s + Number(d.value), 0);
+    const conversion =
+      won.length + lost.length > 0 ? (won.length / (won.length + lost.length)) * 100 : 0;
+    return {
+      openCount: open.length,
+      wonCount: won.length,
+      lostCount: lost.length,
+      openValue,
+      wonValue,
+      conversion,
+    };
+  }
+
+  it("calcula pipeline/ganho/conversão sobre todos os vendedores quando não há vendorId", () => {
+    const result = dashboardKpis(deals);
+    expect(result).toEqual({
+      openCount: 1,
+      wonCount: 4, // d1, d2, d5, d6
+      lostCount: 1,
+      openValue: 150,
+      wonValue: 1000, // 300+200+400+100
+      conversion: 80, // 4 ganhos / (4 ganhos + 1 perdido) * 100
+    });
+  });
+
+  // Espelha dashboard.tsx:100-104 (barra de meta por vendedor)
+  function dashboardGoalTotal(scopedDeals: Deal[], ownerId: string) {
+    return scopedDeals
+      .filter((d) => d.status === "ganho")
+      .filter((d) => d.owner_id === ownerId)
+      .reduce((s, d) => s + Number(d.value), 0);
+  }
+
+  it("soma o total ganho por vendedor para a barra de meta, sem filtro de período", () => {
+    expect(dashboardGoalTotal(deals, "seller-a")).toBe(500);
+    expect(dashboardGoalTotal(deals, "seller-b")).toBe(500);
+  });
+});
+
+describe("relatorios.tsx — fórmulas atuais (réplica fiel, pré-refactor)", () => {
+  // Espelha relatorios.tsx:62-77 (byLead)
+  function byLeadRow(scopedDeals: Deal[], type: string) {
+    const all = scopedDeals.filter((d) => d.lead_type === type);
+    const won = all.filter((d) => d.status === "ganho");
+    const lost = all.filter((d) => d.status === "perdido");
+    const closed = won.length + lost.length;
+    return {
+      total: all.length,
+      won: won.length,
+      lost: lost.length,
+      wonValue: won.reduce((s, d) => s + Number(d.value), 0),
+      ticket: won.length > 0 ? won.reduce((s, d) => s + Number(d.value), 0) / won.length : 0,
+      conversion: closed > 0 ? (won.length / closed) * 100 : 0,
+    };
+  }
+
+  it("agrupa por tipo de lead com ticket médio e conversão", () => {
+    const todosIndicacao = [
+      ...deals,
+      deal({ id: "d7", owner_id: "seller-a", status: "ganho", value: 300, lead_type: "Indicação" }),
+    ].map((d) => ({ ...d, lead_type: "Indicação" }));
+    const row = byLeadRow(todosIndicacao, "Indicação");
+    expect(row.won).toBe(5); // d1, d2, d5, d6, d7
+    expect(row.wonValue).toBe(1300);
+    expect(row.ticket).toBe(260); // 1300 / 5
+  });
+
+  it("ticket médio é 0 quando não há negócio ganho naquele tipo de lead", () => {
+    const row = byLeadRow(
+      deals.filter((d) => d.status !== "ganho"),
+      "Indicação",
+    );
+    expect(row.ticket).toBe(0);
+    expect(row.conversion).toBe(0);
+  });
+
+  // Espelha relatorios.tsx:181-196 (tabela por vendedor)
+  function sellerRow(scopedDeals: Deal[], ownerId: string) {
+    const mine = scopedDeals.filter((d) => d.owner_id === ownerId);
+    const won = mine.filter((d) => d.status === "ganho");
+    const lost = mine.filter((d) => d.status === "perdido");
+    const closed = won.length + lost.length;
+    return {
+      open: mine.filter((d) => d.status === "aberto").length,
+      won: won.length,
+      conversionLabel: closed > 0 ? `${((won.length / closed) * 100).toFixed(1)}%` : "—",
+      wonValue: won.reduce((s, d) => s + Number(d.value), 0),
+    };
+  }
+
+  it("mostra travessão quando o vendedor não tem negócios fechados no período", () => {
+    const row = sellerRow(deals, "seller-sem-fechamento".concat(""));
+    expect(row).toEqual({ open: 0, won: 0, conversionLabel: "—", wonValue: 0 });
+  });
+
+  it("calcula conversão por vendedor com um negócio aberto e um ganho", () => {
+    const row = sellerRow(deals, "seller-a");
+    expect(row).toEqual({ open: 1, won: 2, conversionLabel: "66.7%", wonValue: 500 });
+  });
+});
+
+describe("comissoes.tsx — fórmula atual do card 'Receita ganha' (réplica fiel, pré-refactor)", () => {
+  // Espelha comissoes.tsx:73 — soma TODOS os vendedores, sem filtro de vendorId/período.
+  function receitaGanhaCard(scopedDeals: Deal[]) {
+    return scopedDeals.filter((d) => d.status === "ganho").reduce((s, d) => s + Number(d.value), 0);
+  }
+
+  it("soma a receita ganha de todos os vendedores somados", () => {
+    expect(receitaGanhaCard(deals)).toBe(1000); // 300+200+400+100, ignora dono
+  });
+});
+
+describe("filterByPeriod() — comportamento atual (caracterização)", () => {
+  it("usa closed_at quando presente, e cai para created_at quando closed_at é null", () => {
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+
+    const comClosedAtAntigo = deal({
+      id: "d1",
+      owner_id: "seller-a",
+      closed_at: "2020-01-01T00:00:00.000Z",
+      created_at: "2026-10-15T12:00:00.000Z", // dentro da semana, mas closed_at manda
+    });
+    const semClosedAt = deal({
+      id: "d2",
+      owner_id: "seller-a",
+      closed_at: null,
+      created_at: "2026-10-15T12:00:00.000Z", // cai no fallback, dentro da semana
+    });
+
+    const result = filterByPeriod([comClosedAtAntigo, semClosedAt], "semana");
+    expect(result.map((d) => d.id)).toEqual(["d2"]);
+
+    vi.useRealTimers();
+  });
+
+  it("'semana' não tem limite superior — negócio no futuro ainda é incluído", () => {
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+
+    const futuro = deal({
+      id: "d-futuro",
+      owner_id: "seller-a",
+      closed_at: "2030-01-01T00:00:00.000Z",
+    });
+    expect(filterByPeriod([futuro], "semana").map((d) => d.id)).toEqual(["d-futuro"]);
+
+    vi.useRealTimers();
+  });
+
+  it("'mes' exige mesmo ano e mesmo mês do relógio atual", () => {
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+
+    // Horário em UTC-meio-dia para não cruzar a virada de dia/mês/ano por
+    // causa do fuso horário local da máquina que roda o teste.
+    const mesmoMes = deal({
+      id: "d1",
+      owner_id: "seller-a",
+      closed_at: "2026-10-10T12:00:00.000Z",
+    });
+    const mesPassado = deal({
+      id: "d2",
+      owner_id: "seller-a",
+      closed_at: "2026-09-15T12:00:00.000Z",
+    });
+    const anoPassadoMesmoMes = deal({
+      id: "d3",
+      owner_id: "seller-a",
+      closed_at: "2025-10-15T12:00:00.000Z",
+    });
+
+    expect(
+      filterByPeriod([mesmoMes, mesPassado, anoPassadoMesmoMes], "mes").map((d) => d.id),
+    ).toEqual(["d1"]);
+
+    vi.useRealTimers();
+  });
+
+  it("'ano' exige mesmo ano do relógio atual, qualquer mês", () => {
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+
+    const mesmoAno = deal({
+      id: "d1",
+      owner_id: "seller-a",
+      closed_at: "2026-06-15T12:00:00.000Z",
+    });
+    const anoPassado = deal({
+      id: "d2",
+      owner_id: "seller-a",
+      closed_at: "2025-06-15T12:00:00.000Z",
+    });
+
+    expect(filterByPeriod([mesmoAno, anoPassado], "ano").map((d) => d.id)).toEqual(["d1"]);
+
+    vi.useRealTimers();
+  });
+
+  it("array vazio retorna array vazio para qualquer período", () => {
+    expect(filterByPeriod([], "mes")).toEqual([]);
+  });
+});

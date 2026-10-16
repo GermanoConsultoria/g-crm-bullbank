@@ -3,7 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/crm/AppShell";
-import { currency, fetchDeals, fetchStages, fetchTasks, fetchProfiles, shortDate } from "@/lib/crm";
+import {
+  currency,
+  fetchDeals,
+  fetchStages,
+  fetchTasks,
+  fetchProfiles,
+  shortDate,
+  summarizeDeals,
+} from "@/lib/crm";
 
 type DashboardSearch = { vendorId?: string | undefined };
 
@@ -43,12 +51,11 @@ function Dashboard() {
   const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
   const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
 
+  // Mantido separado do resumo abaixo: alimenta o gráfico de pipeline por
+  // etapa, que é um cálculo de negócios "aberto" (pipeline), não de receita
+  // ganha/comissão — famílias diferentes, não unificadas de propósito.
   const open = deals.filter((d) => d.status === "aberto");
-  const won = deals.filter((d) => d.status === "ganho");
-  const lost = deals.filter((d) => d.status === "perdido");
-  const openValue = open.reduce((s, d) => s + Number(d.value), 0);
-  const wonValue = won.reduce((s, d) => s + Number(d.value), 0);
-  const conversion = won.length + lost.length > 0 ? (won.length / (won.length + lost.length)) * 100 : 0;
+  const summary = summarizeDeals(deals);
   const pending = tasks.filter((t) => !t.done);
 
   const chart = stages.map((stage) => ({
@@ -64,9 +71,13 @@ function Dashboard() {
       subtitle={sellerName ? `Panorama de ${sellerName}` : "Panorama do time comercial"}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Pipeline aberto" value={currency(openValue)} hint={`${open.length} negócios em andamento`} />
-        <Kpi label="Ganho" value={currency(wonValue)} hint={`${won.length} negócios fechados`} />
-        <Kpi label="Conversão" value={`${conversion.toFixed(1)}%`} hint={`${lost.length} perdidos`} />
+        <Kpi label="Pipeline aberto" value={currency(summary.openValue)} hint={`${open.length} negócios em andamento`} />
+        <Kpi
+          label="Ganho"
+          value={currency(summary.wonValue)}
+          hint={`${summary.wonCount} negócios fechados`}
+        />
+        <Kpi label="Conversão" value={`${summary.conversion.toFixed(1)}%`} hint={`${summary.lostCount} perdidos`} />
         <Kpi label="Tarefas pendentes" value={String(pending.length)} hint={`${tasks.length - pending.length} concluídas`} />
       </div>
 
@@ -98,9 +109,7 @@ function Dashboard() {
           <p className="text-sm font-medium">Metas do time</p>
           <div className="mt-4 space-y-4">
             {profiles.map((profile) => {
-              const total = won
-                .filter((d) => d.owner_id === profile.id)
-                .reduce((s, d) => s + Number(d.value), 0);
+              const { wonValue: total } = summarizeDeals(deals, { ownerId: profile.id });
               const progress = profile.monthly_goal > 0 ? Math.min(100, (total / profile.monthly_goal) * 100) : 0;
               return (
                 <div key={profile.id}>

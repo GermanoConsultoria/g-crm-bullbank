@@ -144,14 +144,68 @@ export const fetchMyRole = async () => {
   return (data?.[0]?.role as string | undefined) ?? "vendedor";
 };
 
+export type DealSummary = {
+  openCount: number;
+  wonCount: number;
+  lostCount: number;
+  openValue: number;
+  wonValue: number;
+  /** % de ganhos entre os negócios fechados (ganho + perdido); 0 se nenhum negócio fechado. */
+  conversion: number;
+};
+
+/**
+ * Agrega negócios por status (aberto/ganho/perdido), somando `value` com a
+ * mesma coerção Number() usada em todas as telas. Não aplica filtro de
+ * período — quem precisar disso (ex: relatorios.tsx) filtra o array antes de
+ * chamar esta função, preservando o comportamento de cada tela.
+ */
+export function summarizeDeals(deals: Deal[], options: { ownerId?: string } = {}): DealSummary {
+  const scoped =
+    options.ownerId !== undefined ? deals.filter((d) => d.owner_id === options.ownerId) : deals;
+  const open = scoped.filter((d) => d.status === "aberto");
+  const won = scoped.filter((d) => d.status === "ganho");
+  const lost = scoped.filter((d) => d.status === "perdido");
+  const closed = won.length + lost.length;
+  return {
+    openCount: open.length,
+    wonCount: won.length,
+    lostCount: lost.length,
+    openValue: open.reduce((sum, d) => sum + Number(d.value), 0),
+    wonValue: won.reduce((sum, d) => sum + Number(d.value), 0),
+    conversion: closed > 0 ? (won.length / closed) * 100 : 0,
+  };
+}
+
 /** Comissão = taxa configurada do vendedor aplicada sobre os negócios ganhos. */
 export function commissionFor(deals: Deal[], profile: Profile) {
-  const won = deals.filter((d) => d.owner_id === profile.id && d.status === "ganho");
-  const total = won.reduce((sum, d) => sum + Number(d.value), 0);
+  const { wonCount, wonValue } = summarizeDeals(deals, { ownerId: profile.id });
   return {
-    wonCount: won.length,
-    total,
-    commission: (total * Number(profile.commission_rate)) / 100,
-    goalProgress: profile.monthly_goal > 0 ? Math.min(100, (total / profile.monthly_goal) * 100) : 0,
+    wonCount,
+    total: wonValue,
+    commission: (wonValue * Number(profile.commission_rate)) / 100,
+    goalProgress:
+      profile.monthly_goal > 0 ? Math.min(100, (wonValue / profile.monthly_goal) * 100) : 0,
   };
+}
+
+export type Period = "semana" | "mes" | "ano";
+
+/** Filtra negócios por período de referência (`closed_at ?? created_at`). Usada em relatorios.tsx. */
+export function filterByPeriod(deals: Deal[], period: Period): Deal[] {
+  const now = new Date();
+  return deals.filter((d) => {
+    const ref = d.closed_at ?? d.created_at;
+    const date = new Date(ref);
+    if (period === "semana") {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      return date >= weekAgo;
+    }
+    if (period === "mes") {
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    }
+    // ano
+    return date.getFullYear() === now.getFullYear();
+  });
 }

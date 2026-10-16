@@ -4,27 +4,14 @@ import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/crm/AppShell";
-import { currency, fetchDeals, fetchProfiles, type Deal } from "@/lib/crm";
-
-type Period = "semana" | "mes" | "ano";
-
-function filterByPeriod(deals: Deal[], period: Period): Deal[] {
-  const now = new Date();
-  return deals.filter((d) => {
-    const ref = d.closed_at ?? d.created_at;
-    const date = new Date(ref);
-    if (period === "semana") {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(now.getDate() - 7);
-      return date >= weekAgo;
-    }
-    if (period === "mes") {
-      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-    }
-    // ano
-    return date.getFullYear() === now.getFullYear();
-  });
-}
+import {
+  currency,
+  fetchDeals,
+  fetchProfiles,
+  filterByPeriod,
+  summarizeDeals,
+  type Period,
+} from "@/lib/crm";
 
 type RelatoriosSearch = { vendorId?: string | undefined };
 
@@ -62,17 +49,15 @@ function ReportsPage() {
   const byLead = leadTypes
     .map((type) => {
       const all = deals.filter((d) => d.lead_type === type);
-      const won = all.filter((d) => d.status === "ganho");
-      const lost = all.filter((d) => d.status === "perdido");
-      const closed = won.length + lost.length;
+      const summary = summarizeDeals(all);
       return {
         type,
         total: all.length,
-        won: won.length,
-        lost: lost.length,
-        wonValue: won.reduce((s, d) => s + Number(d.value), 0),
-        ticket: won.length > 0 ? won.reduce((s, d) => s + Number(d.value), 0) / won.length : 0,
-        conversion: closed > 0 ? (won.length / closed) * 100 : 0,
+        won: summary.wonCount,
+        lost: summary.lostCount,
+        wonValue: summary.wonValue,
+        ticket: summary.wonCount > 0 ? summary.wonValue / summary.wonCount : 0,
+        conversion: summary.conversion,
       };
     })
     .sort((a, b) => b.conversion - a.conversion);
@@ -179,21 +164,17 @@ function ReportsPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {profiles.map((profile) => {
-              const mine = deals.filter((d) => d.owner_id === profile.id);
-              const won = mine.filter((d) => d.status === "ganho");
-              const lost = mine.filter((d) => d.status === "perdido");
-              const closed = won.length + lost.length;
+              const summary = summarizeDeals(deals, { ownerId: profile.id });
+              const closed = summary.wonCount + summary.lostCount;
               return (
                 <tr key={profile.id}>
                   <td className="px-4 py-3 font-medium">{profile.full_name || profile.email}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {mine.filter((d) => d.status === "aberto").length}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{won.length}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{summary.openCount}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{summary.wonCount}</td>
                   <td className="px-4 py-3 font-medium text-primary">
-                    {closed > 0 ? `${((won.length / closed) * 100).toFixed(1)}%` : "—"}
+                    {closed > 0 ? `${summary.conversion.toFixed(1)}%` : "—"}
                   </td>
-                  <td className="px-4 py-3">{currency(won.reduce((s, d) => s + Number(d.value), 0))}</td>
+                  <td className="px-4 py-3">{currency(summary.wonValue)}</td>
                 </tr>
               );
             })}

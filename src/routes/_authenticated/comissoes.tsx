@@ -8,7 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { commissionFor, currency, fetchDeals, fetchMyRole, fetchProfiles } from "@/lib/crm";
+import {
+  commissionFor,
+  currency,
+  fetchDeals,
+  fetchMyRole,
+  fetchProfiles,
+  summarizeDeals,
+} from "@/lib/crm";
 
 type ComissoesSearch = { vendorId?: string | undefined };
 
@@ -70,7 +77,8 @@ function CommissionsPage() {
         <div className="panel p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Receita ganha</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight">
-            {currency(deals.filter((d) => d.status === "ganho").reduce((s, d) => s + Number(d.value), 0))}
+            {/* Pendência registrada na Fase 0: soma todos os vendedores, ignora ?vendorId=. */}
+            {currency(summarizeDeals(deals).wonValue)}
           </p>
         </div>
         <div className="panel p-4">

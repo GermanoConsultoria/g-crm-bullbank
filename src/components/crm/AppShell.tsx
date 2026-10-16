@@ -41,10 +41,12 @@ const sellerWorkItems = [
   { to: "/comissoes", label: "Comissões", icon: Wallet },
 ] as const;
 
-// Menu de topo do admin: visão geral (todos os vendedores somados) e as
-// páginas de gestão. Tudo mais fica dentro da pasta de cada vendedor.
+// Menu de topo do admin: visão geral (todos os vendedores somados), a lista
+// completa de clientes do sistema e as páginas de gestão. Para ver só os
+// clientes de um vendedor específico, o admin entra na pasta dele (abaixo).
 const adminTopItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/clientes", label: "Contatos", icon: Users },
   { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags },
   { to: "/parceiros", label: "Parceiros", icon: Handshake },
   { to: "/usuarios", label: "Usuários", icon: UserCog },

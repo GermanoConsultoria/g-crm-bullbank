@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,8 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchClients, fetchLeadTypes, fetchProfiles, shortDate, type Client } from "@/lib/crm";
+import { fetchClients, fetchLeadTypes, fetchMyRole, fetchProfiles, shortDate, type Client } from "@/lib/crm";
 
 type ClientesSearch = { vendorId?: string | undefined };
 
@@ -71,14 +78,21 @@ const empty: FormState = {
 function ClientsPage() {
   const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
+  const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
+  const isAdmin = role === "admin";
+  const { data: currentUser } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
+  });
   const { data: allClients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
-  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: !!vendorId });
+  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: isAdmin });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
   const clients = vendorId ? allClients.filter((c) => c.owner_id === vendorId) : allClients;
   const sellerName = vendorId ? allProfiles.find((p) => p.id === vendorId)?.full_name : null;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState<FormState>(empty);
+  const [ownerId, setOwnerId] = useState("");
   const [search, setSearch] = useState("");
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
@@ -86,15 +100,26 @@ function ClientsPage() {
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
+  // Enquanto o diálogo está aberto para um cadastro novo, mantém o
+  // responsável padrão (pasta do vendedor atual, ou o próprio usuário)
+  // pré-selecionado no campo visível só para admin, até ele trocar.
+  useEffect(() => {
+    if (open && !editing) {
+      setOwnerId(vendorId ?? currentUser?.id ?? "");
+    }
+  }, [open, editing, vendorId, currentUser]);
+
   const save = useMutation({
     mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const resolvedOwnerId = isAdmin ? ownerId || userData.user!.id : (vendorId ?? userData.user!.id);
       if (editing) {
-        const { error } = await supabase.from("clients").update(form).eq("id", editing.id);
+        const payload = isAdmin ? { ...form, owner_id: resolvedOwnerId } : form;
+        const { error } = await supabase.from("clients").update(payload).eq("id", editing.id);
         if (error) throw error;
         return;
       }
-      const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from("clients").insert({ ...form, owner_id: vendorId ?? userData.user!.id });
+      const { error } = await supabase.from("clients").insert({ ...form, owner_id: resolvedOwnerId });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -130,6 +155,7 @@ function ClientsPage() {
       source: client.source ?? "",
       notes: client.notes ?? "",
     });
+    setOwnerId(client.owner_id);
     setOpen(true);
   };
 
@@ -202,6 +228,23 @@ function ClientsPage() {
                     ))}
                   </select>
                 </div>
+                {isAdmin && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Vendedor responsável (somente admin)</Label>
+                    <Select value={ownerId} onValueChange={setOwnerId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um vendedor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allProfiles.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            {profile.full_name || profile.email || "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label>Observações</Label>
                   <Textarea value={form.notes} onChange={set("notes")} rows={3} />

@@ -129,3 +129,27 @@ export const setUserActive = createServerFn({ method: "POST" })
 
     return { id: data.userId, active: data.active };
   });
+
+const deleteUserAccountSchema = z.object({
+  userId: z.string().uuid(),
+});
+
+export const deleteUserAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => deleteUserAccountSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+
+    if (data.userId === context.userId) {
+      throw new Error("Você não pode excluir sua própria conta.");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // O ON DELETE CASCADE de auth.users também remove profiles, user_roles
+    // e todos os registros (funis, clientes, negócios, tarefas) desse dono.
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (error) throw new Error(error.message);
+
+    return { id: data.userId };
+  });

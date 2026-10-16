@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Eye, EyeOff, Pencil, Plus, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, Pencil, Plus, Power, PowerOff, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -9,7 +9,6 @@ import { AppShell } from "@/components/crm/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +18,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,7 +36,12 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMyRole, fetchProfiles, fetchUserRoles, type Profile, type UserRole } from "@/lib/crm";
-import { createUserAccount, setUserActive, updateUserAccount } from "@/lib/admin-users.functions";
+import {
+  createUserAccount,
+  deleteUserAccount,
+  setUserActive,
+  updateUserAccount,
+} from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   head: () => ({
@@ -87,6 +101,8 @@ function UsersPage() {
   const [editForm, setEditForm] = useState({ fullName: "", email: "", role: "vendedor" as UserRole });
   const [editErrors, setEditErrors] = useState<EditFormErrors>({});
 
+  const [deleting, setDeleting] = useState<Profile | null>(null);
+
   const isAdmin = role === "admin";
   const roleByUser = new Map<string, UserRole>();
   for (const r of roles) {
@@ -127,6 +143,16 @@ function UsersPage() {
     onSuccess: () => {
       invalidateUsers();
       toast.success("Status atualizado.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (input: { userId: string }) => deleteUserAccount({ data: input }),
+    onSuccess: () => {
+      invalidateUsers();
+      toast.success("Conta excluída.");
+      setDeleting(null);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -318,19 +344,54 @@ function UsersPage() {
                   <td className="px-4 py-3 text-muted-foreground">{profile.email ?? "—"}</td>
                   <td className="px-4 py-3 capitalize">{roleByUser.get(profile.id) ?? "vendedor"}</td>
                   <td className="px-4 py-3">
-                    <Switch
-                      checked={profile.is_active}
-                      disabled={isSelf || toggleActive.isPending}
-                      title={isSelf ? "Você não pode desativar a própria conta." : undefined}
-                      onCheckedChange={(checked) =>
-                        toggleActive.mutate({ userId: profile.id, active: checked })
+                    <span
+                      className={
+                        profile.is_active
+                          ? "rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-500"
+                          : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                       }
-                    />
+                    >
+                      {profile.is_active ? "Ativo" : "Inativo"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button size="icon" variant="ghost" onClick={() => startEdit(profile)}>
-                      <Pencil className="size-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => startEdit(profile)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      {profile.is_active ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={isSelf || toggleActive.isPending}
+                          title={isSelf ? "Você não pode desativar a própria conta." : "Desativar"}
+                          onClick={() => toggleActive.mutate({ userId: profile.id, active: false })}
+                        >
+                          <PowerOff className="size-4" />
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            disabled={toggleActive.isPending}
+                            title="Ativar"
+                            onClick={() => toggleActive.mutate({ userId: profile.id, active: true })}
+                          >
+                            <Power className="size-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            title="Excluir"
+                            onClick={() => setDeleting(profile)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -394,6 +455,32 @@ function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(next) => !next && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {deleting?.full_name || "usuário"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação é permanente. Além da conta de acesso, todos os funis, clientes, negócios e
+              tarefas pertencentes a este usuário também serão excluídos. Se preferir manter o
+              histórico, desative a conta em vez de excluí-la.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={remove.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleting) remove.mutate({ userId: deleting.id });
+              }}
+            >
+              {remove.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

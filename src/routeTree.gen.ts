@@ -17,6 +17,7 @@ import { Route as AuthenticatedComissoesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFormulariosRouteImport } from './routes/_authenticated/formularios'
 import { Route as AuthenticatedFunilRouteImport } from './routes/_authenticated/funil'
+import { Route as AuthenticatedParceirosRouteImport } from './routes/_authenticated/parceiros'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthenticatedTiposDeLeadRouteImport } from './routes/_authenticated/tipos-de-lead'
@@ -64,6 +65,11 @@ const AuthenticatedFunilRoute = AuthenticatedFunilRouteImport.update({
   path: '/funil',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedParceirosRoute = AuthenticatedParceirosRouteImport.update({
+  id: '/parceiros',
+  path: '/parceiros',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/formularios': typeof AuthenticatedFormulariosRoute
   '/funil': typeof AuthenticatedFunilRouteWithChildren
+  '/parceiros': typeof AuthenticatedParceirosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByTo {
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/formularios': typeof AuthenticatedFormulariosRoute
+  '/parceiros': typeof AuthenticatedParceirosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -136,6 +144,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/formularios': typeof AuthenticatedFormulariosRoute
   '/_authenticated/funil': typeof AuthenticatedFunilRouteWithChildren
+  '/_authenticated/parceiros': typeof AuthenticatedParceirosRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/_authenticated/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/formularios'
     | '/funil'
+    | '/parceiros'
     | '/relatorios'
     | '/tarefas'
     | '/tipos-de-lead'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/comissoes'
     | '/dashboard'
     | '/formularios'
+    | '/parceiros'
     | '/relatorios'
     | '/tarefas'
     | '/tipos-de-lead'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/formularios'
     | '/_authenticated/funil'
+    | '/_authenticated/parceiros'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/_authenticated/tipos-de-lead'
@@ -255,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFunilRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/parceiros': {
+      id: '/_authenticated/parceiros'
+      path: '/parceiros'
+      fullPath: '/parceiros'
+      preLoaderRoute: typeof AuthenticatedParceirosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/relatorios': {
       id: '/_authenticated/relatorios'
       path: '/relatorios'
@@ -319,6 +338,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFormulariosRoute: typeof AuthenticatedFormulariosRoute
   AuthenticatedFunilRoute: typeof AuthenticatedFunilRouteWithChildren
+  AuthenticatedParceirosRoute: typeof AuthenticatedParceirosRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedTiposDeLeadRoute: typeof AuthenticatedTiposDeLeadRoute
@@ -331,6 +351,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFormulariosRoute: AuthenticatedFormulariosRoute,
   AuthenticatedFunilRoute: AuthenticatedFunilRouteWithChildren,
+  AuthenticatedParceirosRoute: AuthenticatedParceirosRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedTiposDeLeadRoute: AuthenticatedTiposDeLeadRoute,

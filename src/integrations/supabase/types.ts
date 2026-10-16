@@ -207,6 +207,68 @@ export type Database = {
         }
         Relationships: []
       }
+      partners: {
+        Row: {
+          company: string | null
+          created_at: string
+          created_by: string | null
+          document: string | null
+          email: string | null
+          id: string
+          import_review_reason: string | null
+          is_active: boolean
+          legacy_form_submission_id: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          segment: string | null
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          created_by?: string | null
+          document?: string | null
+          email?: string | null
+          id?: string
+          import_review_reason?: string | null
+          is_active?: boolean
+          legacy_form_submission_id?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          segment?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          created_by?: string | null
+          document?: string | null
+          email?: string | null
+          id?: string
+          import_review_reason?: string | null
+          is_active?: boolean
+          legacy_form_submission_id?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          segment?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partners_legacy_form_submission_id_fkey"
+            columns: ["legacy_form_submission_id"]
+            isOneToOne: true
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           commission_rate: number

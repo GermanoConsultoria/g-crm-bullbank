@@ -24,6 +24,24 @@ export type Client = {
   created_at: string;
 };
 
+export type Partner = {
+  id: string;
+  name: string;
+  company: string | null;
+  document: string | null;
+  email: string | null;
+  phone: string | null;
+  segment: string | null;
+  specialty: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  legacy_form_submission_id: string | null;
+  import_review_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Funnel = {
   id: string;
   owner_id: string;
@@ -100,6 +118,11 @@ export const fetchProfiles = () =>
 
 export const fetchClients = async () => {
   const data = await unwrap<Client[]>(supabase.from("clients").select("*"));
+  return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+};
+
+export const fetchPartners = async () => {
+  const data = await unwrap<Partner[]>(supabase.from("partners").select("*"));
   return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 };
 

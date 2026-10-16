@@ -8,6 +8,7 @@ import {
   BarChart3,
   Wallet,
   Tags,
+  Handshake,
   UserCog,
   LogOut,
   PanelLeftOpen,
@@ -35,6 +36,7 @@ const sellerWorkItems = [
   { to: "/funil",     label: "Funil",     icon: KanbanSquare },
   { to: "/tarefas",   label: "Tarefas",   icon: ListChecks },
   { to: "/formularios", label: "Formulários", icon: ClipboardList },
+  { to: "/parceiros", label: "Parceiros", icon: Handshake },
   { to: "/relatorios",label: "Relatórios",icon: BarChart3 },
   { to: "/comissoes", label: "Comissões", icon: Wallet },
 ] as const;
@@ -44,6 +46,7 @@ const sellerWorkItems = [
 const adminTopItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags },
+  { to: "/parceiros", label: "Parceiros", icon: Handshake },
   { to: "/usuarios", label: "Usuários", icon: UserCog },
 ] as const;
 

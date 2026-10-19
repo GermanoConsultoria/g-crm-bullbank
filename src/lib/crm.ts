@@ -25,6 +25,8 @@ export type Contact = {
   // Específicos de cliente.
   lead_type: string | null;
   source: string | null;
+  churned_at: string | null;
+  churn_reason: string | null;
   // Específicos de parceiro.
   document: string | null;
   segment: string | null;
@@ -238,4 +240,92 @@ export function filterByPeriod(deals: Deal[], period: Period): Deal[] {
     // ano
     return date.getFullYear() === now.getFullYear();
   });
+}
+
+/** Início do período (mesmos limites de filterByPeriod), usado por churnFor(). */
+function periodStart(period: Period): Date {
+  const now = new Date();
+  if (period === "semana") {
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+    return weekAgo;
+  }
+  if (period === "mes") return new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(now.getFullYear(), 0, 1); // ano
+}
+
+/** Cliente ativo = tem pelo menos um negócio ganho vinculado e não cancelou. */
+export function isActiveClient(contact: Contact, deals: Deal[]) {
+  return (
+    contact.type === "cliente" &&
+    !contact.churned_at &&
+    deals.some((d) => d.client_id === contact.id && d.status === "ganho")
+  );
+}
+
+export type ChurnSummary = {
+  activeAtStart: number;
+  churned: number;
+  rate: number;
+  churnedClients: {
+    id: string;
+    name: string;
+    company: string | null;
+    churned_at: string;
+    churn_reason: string | null;
+    wonValue: number;
+  }[];
+};
+
+/**
+ * Taxa de churn do período = cancelados no período / clientes que já estavam
+ * ativos no início do período. "Ativo no início do período" = o primeiro
+ * negócio ganho dele fechou antes do início do período, e ele não tinha
+ * cancelado ainda (churned_at nulo, ou cancelou dentro/depois do período).
+ */
+export function churnFor(contacts: Contact[], deals: Deal[], period: Period): ChurnSummary {
+  const start = periodStart(period);
+  const clients = contacts.filter((c) => c.type === "cliente");
+
+  const wonValueFor = (clientId: string) =>
+    deals
+      .filter((d) => d.client_id === clientId && d.status === "ganho")
+      .reduce((sum, d) => sum + Number(d.value), 0);
+
+  const activationDate = (clientId: string): Date | null => {
+    const won = deals.filter((d) => d.client_id === clientId && d.status === "ganho");
+    if (won.length === 0) return null;
+    const earliest = Math.min(...won.map((d) => new Date(d.closed_at ?? d.created_at).getTime()));
+    return new Date(earliest);
+  };
+
+  let activeAtStart = 0;
+  const churnedClients: ChurnSummary["churnedClients"] = [];
+
+  for (const client of clients) {
+    const activatedAt = activationDate(client.id);
+    if (!activatedAt || activatedAt >= start) continue;
+
+    const churnedAt = client.churned_at ? new Date(client.churned_at) : null;
+    if (churnedAt && churnedAt < start) continue; // já tinha cancelado antes do período começar
+
+    activeAtStart += 1;
+    if (churnedAt) {
+      churnedClients.push({
+        id: client.id,
+        name: client.name,
+        company: client.company,
+        churned_at: client.churned_at!,
+        churn_reason: client.churn_reason,
+        wonValue: wonValueFor(client.id),
+      });
+    }
+  }
+
+  return {
+    activeAtStart,
+    churned: churnedClients.length,
+    rate: activeAtStart > 0 ? (churnedClients.length / activeAtStart) * 100 : 0,
+    churnedClients,
+  };
 }

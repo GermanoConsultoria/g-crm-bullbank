@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  churnFor,
   commissionFor,
   filterByPeriod,
+  isActiveClient,
   partnerCommissionFor,
   summarizeDeals,
+  type Contact,
   type Deal,
   type Profile,
 } from "@/lib/crm";
@@ -440,5 +443,165 @@ describe("filterByPeriod() — comportamento atual (caracterização)", () => {
 
   it("array vazio retorna array vazio para qualquer período", () => {
     expect(filterByPeriod([], "mes")).toEqual([]);
+  });
+});
+
+function contact(partial: Partial<Contact> & { id: string; name: string }): Contact {
+  return {
+    type: "cliente",
+    owner_id: "seller-a",
+    company: null,
+    email: null,
+    phone: null,
+    notes: null,
+    lead_type: null,
+    source: null,
+    churned_at: null,
+    churn_reason: null,
+    document: null,
+    segment: null,
+    specialty: null,
+    is_active: true,
+    legacy_form_submission_id: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...partial,
+  };
+}
+
+describe("isActiveClient() — cliente ativo = tem negócio ganho e não cancelou", () => {
+  it("true quando tem negócio ganho e não cancelou", () => {
+    const c = contact({ id: "c1", name: "Cliente 1" });
+    const won = [deal({ id: "d1", owner_id: "seller-a", client_id: "c1", status: "ganho" })];
+    expect(isActiveClient(c, won)).toBe(true);
+  });
+
+  it("false quando não tem nenhum negócio ganho", () => {
+    const c = contact({ id: "c1", name: "Cliente 1" });
+    const aberto = [deal({ id: "d1", owner_id: "seller-a", client_id: "c1", status: "aberto" })];
+    expect(isActiveClient(c, aberto)).toBe(false);
+  });
+
+  it("false quando já cancelou, mesmo tendo negócio ganho", () => {
+    const c = contact({ id: "c1", name: "Cliente 1", churned_at: "2026-05-01T00:00:00.000Z" });
+    const won = [deal({ id: "d1", owner_id: "seller-a", client_id: "c1", status: "ganho" })];
+    expect(isActiveClient(c, won)).toBe(false);
+  });
+
+  it("false pra contato do tipo parceiro, mesmo com negócio ganho vinculado", () => {
+    const c = contact({ id: "c1", name: "Parceiro 1", type: "parceiro" });
+    const won = [deal({ id: "d1", owner_id: "seller-a", client_id: "c1", status: "ganho" })];
+    expect(isActiveClient(c, won)).toBe(false);
+  });
+});
+
+describe("churnFor() — taxa de churn do período", () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z")); // dentro de outubro/2026
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("conta no denominador quem ativou antes do período e não cancelou", () => {
+    const ativoAntigo = contact({ id: "c1", name: "Cliente ativo" });
+    const deals = [
+      deal({
+        id: "d1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 1000,
+        closed_at: "2026-01-10T00:00:00.000Z", // antes do início do mês atual
+      }),
+    ];
+    const result = churnFor([ativoAntigo], deals, "mes");
+    expect(result.activeAtStart).toBe(1);
+    expect(result.churned).toBe(0);
+    expect(result.rate).toBe(0);
+  });
+
+  it("conta como cancelado quem ativou antes e cancelou dentro do período", () => {
+    const cancelado = contact({
+      id: "c1",
+      name: "Cliente cancelado",
+      company: "Empresa X",
+      churned_at: "2026-10-10T00:00:00.000Z", // dentro de outubro
+      churn_reason: "Insatisfeito com preço",
+    });
+    const deals = [
+      deal({
+        id: "d1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 2000,
+        closed_at: "2026-01-10T00:00:00.000Z",
+      }),
+    ];
+    const result = churnFor([cancelado], deals, "mes");
+    expect(result.activeAtStart).toBe(1);
+    expect(result.churned).toBe(1);
+    expect(result.rate).toBe(100);
+    expect(result.churnedClients).toEqual([
+      {
+        id: "c1",
+        name: "Cliente cancelado",
+        company: "Empresa X",
+        churned_at: "2026-10-10T00:00:00.000Z",
+        churn_reason: "Insatisfeito com preço",
+        wonValue: 2000,
+      },
+    ]);
+  });
+
+  it("não conta quem só ativou durante o próprio período", () => {
+    const novo = contact({ id: "c1", name: "Cliente novo" });
+    const deals = [
+      deal({
+        id: "d1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        closed_at: "2026-10-05T00:00:00.000Z", // dentro do mês atual, não antes
+      }),
+    ];
+    const result = churnFor([novo], deals, "mes");
+    expect(result.activeAtStart).toBe(0);
+    expect(result.churned).toBe(0);
+  });
+
+  it("não conta quem já tinha cancelado antes do início do período", () => {
+    const canceladoAntigo = contact({
+      id: "c1",
+      name: "Cliente cancelado antigo",
+      churned_at: "2026-02-01T00:00:00.000Z", // antes do início do mês atual
+    });
+    const deals = [
+      deal({
+        id: "d1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        closed_at: "2026-01-10T00:00:00.000Z",
+      }),
+    ];
+    const result = churnFor([canceladoAntigo], deals, "mes");
+    expect(result.activeAtStart).toBe(0);
+    expect(result.churned).toBe(0);
+    expect(result.churnedClients).toEqual([]);
+  });
+
+  it("rate é 0 quando não há nenhum cliente ativo no início do período", () => {
+    expect(churnFor([], [], "mes")).toEqual({
+      activeAtStart: 0,
+      churned: 0,
+      rate: 0,
+      churnedClients: [],
+    });
+  });
+
+  it("ignora contatos do tipo parceiro", () => {
+    const parceiro = contact({ id: "p1", name: "Parceiro", type: "parceiro" });
+    const result = churnFor([parceiro], [], "mes");
+    expect(result.activeAtStart).toBe(0);
   });
 });

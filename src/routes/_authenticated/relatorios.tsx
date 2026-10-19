@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  churnFor,
   currency,
   fetchContacts,
   fetchDeals,
@@ -81,6 +82,9 @@ function ReportsPage() {
     const profile = allProfiles.find((p) => p.id === id);
     return profile?.full_name || profile?.email || "—";
   };
+
+  const clientContacts = contacts.filter((c) => c.type === "cliente" && (!vendorId || c.owner_id === vendorId));
+  const churn = churnFor(clientContacts, scopedDeals, period);
 
   const leadTypes = Array.from(new Set(deals.map((d) => d.lead_type)));
   const byLead = leadTypes
@@ -218,6 +222,56 @@ function ReportsPage() {
                 </tr>
               );
             })}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Churn de clientes</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="panel p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Clientes ativos no início do período</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight">{churn.activeAtStart}</p>
+        </div>
+        <div className="panel p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Cancelados no período</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight">{churn.churned}</p>
+        </div>
+        <div className="panel p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Taxa de churn</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-destructive">
+            {churn.rate.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      <div className="panel mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Empresa</th>
+              <th className="px-4 py-3 font-medium">Receita gerada</th>
+              <th className="px-4 py-3 font-medium">Motivo</th>
+              <th className="px-4 py-3 font-medium">Cancelado em</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {churn.churnedClients.map((c) => (
+              <tr key={c.id}>
+                <td className="px-4 py-3 font-medium">{c.name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{c.company || "—"}</td>
+                <td className="px-4 py-3">{currency(c.wonValue)}</td>
+                <td className="px-4 py-3 text-muted-foreground">{c.churn_reason || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{shortDate(c.churned_at)}</td>
+              </tr>
+            ))}
+            {churn.churnedClients.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  Nenhum cliente cancelado nesse período.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

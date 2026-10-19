@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Power, PowerOff, Trash2 } from "lucide-react";
+import { Pencil, Plus, Power, PowerOff, RotateCcw, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/crm/AppShell";
@@ -39,9 +39,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchContacts,
+  fetchDeals,
   fetchLeadTypes,
   fetchMyRole,
   fetchProfiles,
+  isActiveClient,
   shortDate,
   type Contact,
   type ContactType,
@@ -102,6 +104,7 @@ function ContatosPage() {
   const { data: allContacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, enabled: isAdmin });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
+  const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
 
   const [tipo, setTipo] = useState<ContactType>("cliente");
   const byType = allContacts.filter((c) => c.type === tipo);
@@ -116,6 +119,8 @@ function ContatosPage() {
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Contact | null>(null);
   const [pendingDeactivate, setPendingDeactivate] = useState<Contact | null>(null);
+  const [churnTarget, setChurnTarget] = useState<Contact | null>(null);
+  const [churnForm, setChurnForm] = useState({ date: "", reason: "" });
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -206,6 +211,41 @@ function ContatosPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const markChurn = useMutation({
+    mutationFn: async ({ id, date, reason }: { id: string; date: string; reason: string }) => {
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          churned_at: new Date(date).toISOString(),
+          churn_reason: reason || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Cliente marcado como cancelado.");
+      setChurnTarget(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const reactivateClient = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ churned_at: null, churn_reason: null, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Cliente reativado.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const startEdit = (contact: Contact) => {
     setEditing(contact);
     setForm({
@@ -222,6 +262,11 @@ function ContatosPage() {
     });
     setOwnerId(contact.owner_id);
     setOpen(true);
+  };
+
+  const openChurnDialog = (contact: Contact) => {
+    setChurnTarget(contact);
+    setChurnForm({ date: new Date().toISOString().slice(0, 10), reason: "" });
   };
 
   const filtered = contacts.filter((c) =>
@@ -420,6 +465,43 @@ function ContatosPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <Dialog open={!!churnTarget} onOpenChange={(next) => !next && setChurnTarget(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Marcar "{churnTarget?.name}" como cancelado</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <div className="space-y-1.5">
+                  <Label>Data do cancelamento</Label>
+                  <Input
+                    type="date"
+                    value={churnForm.date}
+                    onChange={(e) => setChurnForm((p) => ({ ...p, date: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Motivo</Label>
+                  <Textarea
+                    value={churnForm.reason}
+                    onChange={(e) => setChurnForm((p) => ({ ...p, reason: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  disabled={!churnForm.date || markChurn.isPending}
+                  onClick={() =>
+                    churnTarget &&
+                    markChurn.mutate({ id: churnTarget.id, date: churnForm.date, reason: churnForm.reason })
+                  }
+                >
+                  Confirmar cancelamento
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       }
     >
@@ -438,7 +520,10 @@ function ContatosPage() {
               <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Contato</th>
               {tipo === "cliente" ? (
-                <th className="px-4 py-3 font-medium">Tipo de lead</th>
+                <>
+                  <th className="px-4 py-3 font-medium">Tipo de lead</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </>
               ) : (
                 <>
                   <th className="px-4 py-3 font-medium">Segmento</th>
@@ -456,9 +541,29 @@ function ContatosPage() {
                 <td className="px-4 py-3 text-muted-foreground">{contact.company || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{contact.email || contact.phone || "—"}</td>
                 {tipo === "cliente" ? (
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary">{contact.lead_type}</Badge>
-                  </td>
+                  <>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">{contact.lead_type}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {contact.churned_at ? (
+                        <span
+                          title={contact.churn_reason ?? undefined}
+                          className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                        >
+                          Cancelado
+                        </span>
+                      ) : isActiveClient(contact, deals) ? (
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-500">
+                          Ativo
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          —
+                        </span>
+                      )}
+                    </td>
+                  </>
                 ) : (
                   <>
                     <td className="px-4 py-3">
@@ -485,9 +590,33 @@ function ContatosPage() {
                         <Pencil className="size-4" />
                       </Button>
                       {tipo === "cliente" ? (
-                        <Button size="icon" variant="ghost" onClick={() => setPendingDelete(contact)}>
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <>
+                          {contact.churned_at ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={reactivateClient.isPending}
+                              title="Reativar"
+                              onClick={() => reactivateClient.mutate(contact.id)}
+                            >
+                              <RotateCcw className="size-4" />
+                            </Button>
+                          ) : (
+                            isActiveClient(contact, deals) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                title="Marcar como cancelado"
+                                onClick={() => openChurnDialog(contact)}
+                              >
+                                <UserX className="size-4" />
+                              </Button>
+                            )
+                          )}
+                          <Button size="icon" variant="ghost" onClick={() => setPendingDelete(contact)}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </>
                       ) : contact.is_active ? (
                         <Button
                           size="icon"
@@ -516,7 +645,7 @@ function ContatosPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={tipo === "cliente" ? 6 : 7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   Nenhum {typeLabel} encontrado.
                 </td>
               </tr>

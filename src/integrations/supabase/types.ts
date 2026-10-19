@@ -41,6 +41,8 @@ export type Database = {
     Tables: {
       contacts: {
         Row: {
+          churn_reason: string | null
+          churned_at: string | null
           company: string | null
           created_at: string
           document: string | null
@@ -60,6 +62,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          churn_reason?: string | null
+          churned_at?: string | null
           company?: string | null
           created_at?: string
           document?: string | null
@@ -79,6 +83,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          churn_reason?: string | null
+          churned_at?: string | null
           company?: string | null
           created_at?: string
           document?: string | null

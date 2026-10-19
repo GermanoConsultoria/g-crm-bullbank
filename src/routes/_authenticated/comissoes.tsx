@@ -18,6 +18,7 @@ import {
   fetchUserRoles,
   onlySellers,
   partnerCommissionFor,
+  profilesForVendor,
   summarizeDeals,
 } from "@/lib/crm";
 
@@ -45,17 +46,18 @@ function CommissionsPage() {
   const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles });
   const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
   const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
-  // Admin não é vendedor: não entra na lista de comissão/meta.
-  const allProfiles = onlySellers(rawProfiles, userRoles);
-  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
-  const partners = contacts.filter(
-    (c) => c.type === "parceiro" && deals.some((d) => d.partner_id === c.id),
-  );
   const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
   const { data: user } = useQuery({
     queryKey: ["auth-user"],
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
+  // Admin não é vendedor: não entra na lista de comissão/meta — exceto
+  // quando ele está vendo a si mesmo (seção "Minhas vendas").
+  const allProfiles = onlySellers(rawProfiles, userRoles);
+  const profiles = profilesForVendor(rawProfiles, allProfiles, vendorId, user?.id);
+  const partners = contacts.filter(
+    (c) => c.type === "parceiro" && deals.some((d) => d.partner_id === c.id),
+  );
   const [drafts, setDrafts] = useState<Record<string, { rate: string; goal: string }>>({});
 
   const save = useMutation({
@@ -96,8 +98,7 @@ function CommissionsPage() {
         <div className="panel p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Receita ganha</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight">
-            {/* Pendência registrada na Fase 0: soma todos os vendedores, ignora ?vendorId=. */}
-            {currency(summarizeDeals(deals).wonValue)}
+            {currency(summarizeDeals(deals, vendorId ? { ownerId: vendorId } : undefined).wonValue)}
           </p>
         </div>
         <div className="panel p-4">

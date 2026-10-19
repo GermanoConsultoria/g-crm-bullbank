@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import {
   churnFor,
   clientVolumeFor,
@@ -24,6 +25,7 @@ import {
   fetchUserRoles,
   filterByPeriod,
   onlySellers,
+  profilesForVendor,
   shortDate,
   summarizeDeals,
   type Contact,
@@ -71,14 +73,19 @@ function ReportsPage() {
   const { data: rawProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles });
   const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
+  const { data: user } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
+  });
   const [period, setPeriod] = useState<Period>("mes");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [volumeTarget, setVolumeTarget] = useState<Contact | null>(null);
 
   // Admin não é vendedor: some da tabela de desempenho por vendedor (mas
-  // continua aparecendo no Histórico se algum negócio antigo for dele).
+  // continua aparecendo no Histórico se algum negócio antigo for dele) —
+  // exceto quando ele está vendo a si mesmo (seção "Minhas vendas").
   const allProfiles = onlySellers(rawProfiles, userRoles);
-  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
+  const profiles = profilesForVendor(rawProfiles, allProfiles, vendorId, user?.id);
   const scopedDeals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
   const deals = filterByPeriod(scopedDeals, period);
 

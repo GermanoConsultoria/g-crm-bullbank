@@ -236,6 +236,29 @@ export function AppShellChrome() {
         {isAdmin && !collapsed && (
           <div className="mt-2 border-t border-sidebar-border pt-2">
             <p className="px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Minhas vendas
+            </p>
+            <div className="mt-1 flex flex-col gap-0.5">
+              {sellerWorkItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  search={{ vendorId: user?.id }}
+                  className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-medium" }}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <item.icon className="size-4 shrink-0" />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isAdmin && !collapsed && (
+          <div className="mt-2 border-t border-sidebar-border pt-2">
+            <p className="px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Vendedores
             </p>
             <div className="mt-1 flex flex-col gap-0.5">

@@ -7,6 +7,7 @@ import {
   filterByPeriod,
   isActiveClient,
   partnerCommissionFor,
+  profilesForVendor,
   summarizeDeals,
   type Contact,
   type Deal,
@@ -420,14 +421,48 @@ describe("relatorios.tsx — fórmulas atuais (réplica fiel, pré-refactor)", (
   });
 });
 
-describe("comissoes.tsx — fórmula atual do card 'Receita ganha' (réplica fiel, pré-refactor)", () => {
-  // Espelha comissoes.tsx:73 — soma TODOS os vendedores, sem filtro de vendorId/período.
-  function receitaGanhaCard(scopedDeals: Deal[]) {
-    return scopedDeals.filter((d) => d.status === "ganho").reduce((s, d) => s + Number(d.value), 0);
+describe("comissoes.tsx — fórmula do card 'Receita ganha'", () => {
+  // Espelha comissoes.tsx:100 — soma só o vendedor escopado por vendorId, ou todos quando ausente.
+  function receitaGanhaCard(scopedDeals: Deal[], vendorId?: string) {
+    return summarizeDeals(scopedDeals, vendorId ? { ownerId: vendorId } : undefined).wonValue;
   }
 
-  it("soma a receita ganha de todos os vendedores somados", () => {
+  it("soma a receita ganha de todos os vendedores somados quando não há vendorId", () => {
     expect(receitaGanhaCard(deals)).toBe(1000); // 300+200+400+100, ignora dono
+  });
+
+  it("soma só a receita do vendedor filtrado quando há vendorId", () => {
+    expect(receitaGanhaCard(deals, "seller-a")).toBe(500); // d1+d2
+  });
+});
+
+describe("profilesForVendor() — perfis visíveis dado um vendorId (inclui o admin vendo a si mesmo)", () => {
+  const adminProfile: Profile = {
+    id: "admin-1",
+    full_name: "Admin",
+    email: "admin@example.com",
+    commission_rate: 0,
+    monthly_goal: 0,
+    is_active: true,
+    force_password_change: false,
+  };
+  const rawProfiles = [profileA, profileB, adminProfile];
+  const sellerProfiles = [profileA, profileB]; // já sem o admin, como onlySellers() devolveria
+
+  it("sem vendorId, devolve sellerProfiles sem alteração", () => {
+    expect(profilesForVendor(rawProfiles, sellerProfiles, undefined, "admin-1")).toEqual(sellerProfiles);
+  });
+
+  it("com vendorId de um vendedor comum, filtra de sellerProfiles", () => {
+    expect(profilesForVendor(rawProfiles, sellerProfiles, "seller-a", "admin-1")).toEqual([profileA]);
+  });
+
+  it("com vendorId igual ao do próprio usuário logado, inclui o perfil mesmo excluído de sellerProfiles", () => {
+    expect(profilesForVendor(rawProfiles, sellerProfiles, "admin-1", "admin-1")).toEqual([adminProfile]);
+  });
+
+  it("com vendorId igual ao do próprio usuário mas sem perfil correspondente, devolve vazio", () => {
+    expect(profilesForVendor(rawProfiles, sellerProfiles, "ghost-id", "ghost-id")).toEqual([]);
   });
 });
 

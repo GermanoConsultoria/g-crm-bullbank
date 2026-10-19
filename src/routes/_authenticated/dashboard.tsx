@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/crm/AppShell";
+import { supabase } from "@/integrations/supabase/client";
 import {
   churnFor,
   commissionFor,
@@ -16,6 +17,7 @@ import {
   fetchUserRoles,
   onlySellers,
   partnerCommissionFor,
+  profilesForVendor,
   shortDate,
   summarizeDeals,
 } from "@/lib/crm";
@@ -57,18 +59,23 @@ function Dashboard() {
   const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
   const { data: rawProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles });
+  const { data: user } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
+  });
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts"],
     queryFn: fetchContacts,
     enabled: isTeamOverview,
   });
 
-  // Admin não é vendedor: some das listas de desempenho/meta/comissão.
+  // Admin não é vendedor: some das listas de desempenho/meta/comissão —
+  // exceto quando ele está vendo a si mesmo (seção "Minhas vendas").
   const allProfiles = onlySellers(rawProfiles, userRoles);
 
   const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
   const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
-  const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
+  const profiles = profilesForVendor(rawProfiles, allProfiles, vendorId, user?.id);
 
   // Resumo do time só pro admin na visão agregada (sem vendorId) — mesmas
   // fórmulas já usadas em /relatorios e /comissoes, reaproveitadas aqui pra

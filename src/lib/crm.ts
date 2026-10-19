@@ -169,6 +169,24 @@ export function onlySellers<T extends { id: string }>(
   return profiles.filter((p) => !adminIds.has(p.id));
 }
 
+/**
+ * Perfis visíveis dado um vendorId: um vendedor específico (filtrado de
+ * sellerProfiles, já sem admin), OU — quando vendorId é o do próprio usuário
+ * logado (o admin "se vendo como vendedor" na seção "Minhas vendas") — o
+ * perfil dele mesmo direto de rawProfiles, ignorando a exclusão de
+ * onlySellers() só nesse caso específico.
+ */
+export function profilesForVendor<T extends { id: string }>(
+  rawProfiles: T[],
+  sellerProfiles: T[],
+  vendorId: string | undefined,
+  selfId: string | undefined,
+): T[] {
+  if (!vendorId) return sellerProfiles;
+  if (vendorId === selfId) return rawProfiles.filter((p) => p.id === vendorId);
+  return sellerProfiles.filter((p) => p.id === vendorId);
+}
+
 export const fetchMyRole = async () => {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;

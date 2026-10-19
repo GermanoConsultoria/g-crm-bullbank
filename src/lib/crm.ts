@@ -152,6 +152,23 @@ export type UserRole = "admin" | "vendedor";
 export const fetchUserRoles = () =>
   unwrap<{ user_id: string; role: UserRole }[]>(supabase.from("user_roles").select("user_id, role"));
 
+/**
+ * Filtra só perfis sem role "admin" — usado pra tirar o admin das listas de
+ * desempenho/comissão/metas, que são sobre quem vende, não quem administra.
+ * Checa presença de 'admin' (como has_role() no banco), em vez de pegar "a"
+ * role do usuário — um usuário não devia ter mais de uma linha em
+ * user_roles, mas se algum bug de novo deixar (como upsert_profile() já
+ * deixou — ver 20261019160000_fix_upsert_profile_role.sql), ter uma role
+ * 'admin' deve bastar pra ser tratado como admin de qualquer forma.
+ */
+export function onlySellers<T extends { id: string }>(
+  profiles: T[],
+  userRoles: { user_id: string; role: UserRole }[],
+): T[] {
+  const adminIds = new Set(userRoles.filter((r) => r.role === "admin").map((r) => r.user_id));
+  return profiles.filter((p) => !adminIds.has(p.id));
+}
+
 export const fetchMyRole = async () => {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;

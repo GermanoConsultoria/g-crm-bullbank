@@ -15,6 +15,8 @@ import {
   fetchDeals,
   fetchMyRole,
   fetchProfiles,
+  fetchUserRoles,
+  onlySellers,
   partnerCommissionFor,
   summarizeDeals,
 } from "@/lib/crm";
@@ -39,9 +41,12 @@ export const Route = createFileRoute("/_authenticated/comissoes")({
 function CommissionsPage() {
   const { vendorId } = Route.useSearch();
   const queryClient = useQueryClient();
-  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: rawProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles });
   const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
   const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
+  // Admin não é vendedor: não entra na lista de comissão/meta.
+  const allProfiles = onlySellers(rawProfiles, userRoles);
   const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
   const partners = contacts.filter(
     (c) => c.type === "parceiro" && deals.some((d) => d.partner_id === c.id),

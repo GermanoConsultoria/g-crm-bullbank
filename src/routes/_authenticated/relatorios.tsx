@@ -19,7 +19,9 @@ import {
   fetchContacts,
   fetchDeals,
   fetchProfiles,
+  fetchUserRoles,
   filterByPeriod,
+  onlySellers,
   shortDate,
   summarizeDeals,
   type Period,
@@ -63,11 +65,15 @@ const PERIODS: { value: Period; label: string }[] = [
 function ReportsPage() {
   const { vendorId } = Route.useSearch();
   const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
-  const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: rawProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: userRoles = [] } = useQuery({ queryKey: ["user-roles"], queryFn: fetchUserRoles });
   const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const [period, setPeriod] = useState<Period>("mes");
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // Admin não é vendedor: some da tabela de desempenho por vendedor (mas
+  // continua aparecendo no Histórico se algum negócio antigo for dele).
+  const allProfiles = onlySellers(rawProfiles, userRoles);
   const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
   const scopedDeals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
   const deals = filterByPeriod(scopedDeals, period);
@@ -79,7 +85,7 @@ function ReportsPage() {
   );
   const contactName = (id: string | null) => contacts.find((c) => c.id === id)?.name ?? "—";
   const profileName = (id: string) => {
-    const profile = allProfiles.find((p) => p.id === id);
+    const profile = rawProfiles.find((p) => p.id === id);
     return profile?.full_name || profile?.email || "—";
   };
 

@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Check, CheckSquare, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +35,7 @@ import {
   fetchDeals,
   fetchFunnels,
   fetchLeadTypes,
+  fetchProfiles,
   fetchStages,
   fetchTasks,
   shortDate,
@@ -46,6 +47,17 @@ const TASK_PRIORITIES = [
   { value: "media", label: "Média" },
   { value: "baixa", label: "Baixa" },
 ];
+
+const emptyDealForm = {
+  title: "",
+  value: "",
+  client_id: "",
+  lead_type: "",
+  stage_id: "",
+  commission_rate: "",
+  partner_id: "",
+  partner_commission_rate: "",
+};
 
 type FunilBoardSearch = { vendorId?: string | undefined };
 
@@ -75,8 +87,14 @@ function FunnelBoardPage() {
   const { data: allContacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
   const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
+  const { data: profiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: currentUser } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
+  });
 
   const allClients = allContacts.filter((c) => c.type === "cliente");
+  const partners = allContacts.filter((c) => c.type === "parceiro" && c.is_active);
   const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
   const clients = vendorId ? allClients.filter((c) => c.owner_id === vendorId) : allClients;
   const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;
@@ -93,13 +111,17 @@ function FunnelBoardPage() {
   const [pendingDeleteDeal, setPendingDeleteDeal] = useState<Deal | null>(null);
   const [taskDeal, setTaskDeal] = useState<Deal | null>(null);
   const [taskForm, setTaskForm] = useState({ title: "", due_date: "", priority: "media" });
-  const [form, setForm] = useState({
-    title: "",
-    value: "",
-    client_id: "",
-    lead_type: "",
-    stage_id: "",
-  });
+  const [form, setForm] = useState(emptyDealForm);
+
+  // Ao abrir o diálogo pra um negócio novo (não edição), pré-preenche a taxa
+  // de comissão com a taxa padrão do vendedor responsável, até o usuário trocar.
+  useEffect(() => {
+    if (dealOpen && !editingDeal) {
+      const resolvedOwnerId = vendorId ?? currentUser?.id;
+      const defaultRate = profiles.find((p) => p.id === resolvedOwnerId)?.commission_rate ?? 0;
+      setForm((p) => ({ ...p, commission_rate: String(defaultRate) }));
+    }
+  }, [dealOpen, editingDeal, vendorId, currentUser, profiles]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["deals"] });
@@ -143,6 +165,10 @@ function FunnelBoardPage() {
 
   const saveDeal = useMutation({
     mutationFn: async () => {
+      const commission_rate = Number(form.commission_rate || 0);
+      const partner_id = form.partner_id || null;
+      const partner_commission_rate = partner_id ? Number(form.partner_commission_rate || 0) : null;
+
       if (editingDeal) {
         const { error } = await supabase
           .from("deals")
@@ -152,6 +178,9 @@ function FunnelBoardPage() {
             client_id: form.client_id || null,
             lead_type: form.lead_type,
             stage_id: form.stage_id || editingDeal.stage_id,
+            commission_rate,
+            partner_id,
+            partner_commission_rate,
           })
           .eq("id", editingDeal.id);
         if (error) throw error;
@@ -165,6 +194,9 @@ function FunnelBoardPage() {
         client_id: form.client_id || null,
         lead_type: form.lead_type,
         stage_id: form.stage_id || stages[0]?.id || null,
+        commission_rate,
+        partner_id,
+        partner_commission_rate,
       });
       if (error) throw error;
     },
@@ -173,7 +205,7 @@ function FunnelBoardPage() {
       toast.success(editingDeal ? "Negócio atualizado." : "Negócio criado.");
       setDealOpen(false);
       setEditingDeal(null);
-      setForm({ title: "", value: "", client_id: "", lead_type: "", stage_id: "" });
+      setForm(emptyDealForm);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -186,6 +218,9 @@ function FunnelBoardPage() {
       client_id: deal.client_id ?? "",
       lead_type: deal.lead_type,
       stage_id: deal.stage_id ?? "",
+      commission_rate: String(deal.commission_rate),
+      partner_id: deal.partner_id ?? "",
+      partner_commission_rate: deal.partner_commission_rate != null ? String(deal.partner_commission_rate) : "",
     });
     setDealOpen(true);
   };
@@ -265,7 +300,7 @@ function FunnelBoardPage() {
             setDealOpen(next);
             if (!next) {
               setEditingDeal(null);
-              setForm({ title: "", value: "", client_id: "", lead_type: "", stage_id: "" });
+              setForm(emptyDealForm);
             }
           }}
         >
@@ -338,6 +373,47 @@ function FunnelBoardPage() {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Taxa de comissão (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={form.commission_rate}
+                    onChange={(e) => setForm((p) => ({ ...p, commission_rate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Parceiro indicador</Label>
+                  <select
+                    value={form.partner_id}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        partner_id: e.target.value,
+                        partner_commission_rate: e.target.value ? p.partner_commission_rate : "",
+                      }))
+                    }
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Sem parceiro</option>
+                    {partners.map((partner) => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {form.partner_id && (
+                  <div className="space-y-1.5">
+                    <Label>Comissão do parceiro (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={form.partner_commission_rate}
+                      onChange={(e) => setForm((p) => ({ ...p, partner_commission_rate: e.target.value }))}
+                    />
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>

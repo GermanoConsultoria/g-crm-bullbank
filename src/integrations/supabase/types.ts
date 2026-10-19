@@ -111,10 +111,13 @@ export type Database = {
         Row: {
           client_id: string | null
           closed_at: string | null
+          commission_rate: number
           created_at: string
           id: string
           lead_type: string
           owner_id: string
+          partner_commission_rate: number | null
+          partner_id: string | null
           stage_id: string | null
           status: string
           title: string
@@ -123,10 +126,13 @@ export type Database = {
         Insert: {
           client_id?: string | null
           closed_at?: string | null
+          commission_rate?: number
           created_at?: string
           id?: string
           lead_type?: string
           owner_id: string
+          partner_commission_rate?: number | null
+          partner_id?: string | null
           stage_id?: string | null
           status?: string
           title: string
@@ -135,10 +141,13 @@ export type Database = {
         Update: {
           client_id?: string | null
           closed_at?: string | null
+          commission_rate?: number
           created_at?: string
           id?: string
           lead_type?: string
           owner_id?: string
+          partner_commission_rate?: number | null
+          partner_id?: string | null
           stage_id?: string | null
           status?: string
           title?: string
@@ -148,6 +157,13 @@ export type Database = {
           {
             foreignKeyName: "deals_client_id_fkey"
             columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_partner_id_fkey"
+            columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]

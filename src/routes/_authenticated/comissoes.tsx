@@ -11,9 +11,11 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   commissionFor,
   currency,
+  fetchContacts,
   fetchDeals,
   fetchMyRole,
   fetchProfiles,
+  partnerCommissionFor,
   summarizeDeals,
 } from "@/lib/crm";
 
@@ -39,7 +41,11 @@ function CommissionsPage() {
   const queryClient = useQueryClient();
   const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const { data: deals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
+  const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
+  const partners = contacts.filter(
+    (c) => c.type === "parceiro" && deals.some((d) => d.partner_id === c.id),
+  );
   const { data: role } = useQuery({ queryKey: ["my-role"], queryFn: fetchMyRole });
   const { data: user } = useQuery({
     queryKey: ["auth-user"],
@@ -63,16 +69,24 @@ function CommissionsPage() {
   });
 
   const totalCommission = profiles.reduce((sum, p) => sum + commissionFor(deals, p).commission, 0);
+  const totalPartnerCommission = partners.reduce(
+    (sum, p) => sum + partnerCommissionFor(deals, p.id).commission,
+    0,
+  );
 
   return (
     <AppShell
       title="Comissões"
-      subtitle="Percentual configurável por vendedor, aplicado sobre negócios ganhos"
+      subtitle="Taxa própria por negócio, aplicada sobre o valor ganho"
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <div className="panel p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Comissão total</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight">{currency(totalCommission)}</p>
+        </div>
+        <div className="panel p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Comissão de parceiros</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight">{currency(totalPartnerCommission)}</p>
         </div>
         <div className="panel p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Receita ganha</p>
@@ -125,7 +139,7 @@ function CommissionsPage() {
               {editable && (
                 <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Taxa (%)</Label>
+                    <Label className="text-xs">Taxa padrão (%)</Label>
                     <Input
                       className="h-9 w-24"
                       type="number"
@@ -167,6 +181,34 @@ function CommissionsPage() {
         })}
         {profiles.length === 0 && (
           <p className="panel p-6 text-center text-sm text-muted-foreground">Nenhum vendedor cadastrado.</p>
+        )}
+      </div>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Comissão de parceiros</h2>
+      <div className="mt-3 space-y-3">
+        {partners.map((partner) => {
+          const stats = partnerCommissionFor(deals, partner.id);
+          return (
+            <div key={partner.id} className="panel p-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">{partner.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.wonCount} negócios indicados · {currency(stats.total)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Comissão</p>
+                  <p className="text-xl font-semibold text-primary">{currency(stats.commission)}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {partners.length === 0 && (
+          <p className="panel p-6 text-center text-sm text-muted-foreground">
+            Nenhum negócio com parceiro indicador ainda.
+          </p>
         )}
       </div>
     </AppShell>

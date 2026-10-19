@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { commissionFor, filterByPeriod, summarizeDeals, type Deal, type Profile } from "@/lib/crm";
+import {
+  commissionFor,
+  filterByPeriod,
+  partnerCommissionFor,
+  summarizeDeals,
+  type Deal,
+  type Profile,
+} from "@/lib/crm";
 
 // Fixture comum: negócios de dois vendedores, com um pouco de tudo
 // (aberto/ganho/perdido, valores numéricos e em string, datas distintas)
@@ -33,38 +40,59 @@ function deal(partial: Partial<Deal> & { id: string; owner_id: string }): Deal {
     value: 0,
     status: "aberto",
     lead_type: "Indicação",
+    commission_rate: 0,
+    partner_id: null,
+    partner_commission_rate: null,
     closed_at: null,
     created_at: "2026-01-01T00:00:00.000Z",
     ...partial,
   };
 }
 
+// commission_rate dos negócios ganhos replica a taxa do vendedor (10% pra
+// seller-a, 5% pra seller-b) pra manter os totais de comissão esperados
+// abaixo — exatamente o que a migration de backfill faz em produção.
 const deals: Deal[] = [
-  deal({ id: "d1", owner_id: "seller-a", status: "ganho", value: 300 }),
-  deal({ id: "d2", owner_id: "seller-a", status: "ganho", value: 200 }),
+  deal({ id: "d1", owner_id: "seller-a", status: "ganho", value: 300, commission_rate: 10 }),
+  deal({ id: "d2", owner_id: "seller-a", status: "ganho", value: 200, commission_rate: 10 }),
   deal({ id: "d3", owner_id: "seller-a", status: "perdido", value: 999 }),
   deal({ id: "d4", owner_id: "seller-a", status: "aberto", value: 150 }),
-  deal({ id: "d5", owner_id: "seller-b", status: "ganho", value: 400 }),
+  deal({ id: "d5", owner_id: "seller-b", status: "ganho", value: 400, commission_rate: 5 }),
   // value como string (vem do input de formulário sem coerção prévia em alguns pontos)
-  deal({ id: "d6", owner_id: "seller-b", status: "ganho", value: "100" as unknown as number }),
+  deal({
+    id: "d6",
+    owner_id: "seller-b",
+    status: "ganho",
+    value: "100" as unknown as number,
+    commission_rate: 5,
+  }),
 ];
 
-describe("commissionFor() — comportamento atual (caracterização)", () => {
+describe("commissionFor() — comissão por taxa própria de cada negócio", () => {
   it("soma apenas os negócios ganhos do próprio vendedor", () => {
     const stats = commissionFor(deals, profileA);
     expect(stats.wonCount).toBe(2);
     expect(stats.total).toBe(500); // 300 + 200, ignora perdido/aberto e o outro vendedor
   });
 
-  it("calcula a comissão como percentual do total ganho", () => {
+  it("calcula a comissão somando valor × taxa de cada negócio ganho", () => {
     const stats = commissionFor(deals, profileA);
-    expect(stats.commission).toBe(50); // 500 * 10%
+    expect(stats.commission).toBe(50); // 300*10% + 200*10%
+  });
+
+  it("negócios do mesmo vendedor com taxas diferentes não usam uma taxa única", () => {
+    const mix = [
+      deal({ id: "x1", owner_id: "seller-a", status: "ganho", value: 100, commission_rate: 10 }),
+      deal({ id: "x2", owner_id: "seller-a", status: "ganho", value: 100, commission_rate: 20 }),
+    ];
+    // profile.commission_rate (10) é ignorado pro cálculo — cada negócio usa a própria taxa.
+    expect(commissionFor(mix, profileA).commission).toBe(30); // 100*10% + 100*20%
   });
 
   it("soma valores em string via coerção Number()", () => {
     const stats = commissionFor(deals, profileB);
     expect(stats.total).toBe(500); // 400 + Number("100")
-    expect(stats.commission).toBe(25); // 500 * 5%
+    expect(stats.commission).toBe(25); // 400*5% + 100*5%
   });
 
   it("não aplica filtro de período — soma o histórico completo do vendedor", () => {
@@ -103,6 +131,59 @@ describe("commissionFor() — comportamento atual (caracterização)", () => {
   it("retorna zero com array de negócios vazio", () => {
     const stats = commissionFor([], profileA);
     expect(stats).toEqual({ wonCount: 0, total: 0, commission: 0, goalProgress: 0 });
+  });
+});
+
+describe("partnerCommissionFor() — comissão do parceiro indicador", () => {
+  const comParceiro: Deal[] = [
+    deal({
+      id: "p1",
+      owner_id: "seller-a",
+      status: "ganho",
+      value: 1000,
+      partner_id: "partner-1",
+      partner_commission_rate: 5,
+    }),
+    deal({
+      id: "p2",
+      owner_id: "seller-b",
+      status: "ganho",
+      value: 500,
+      partner_id: "partner-1",
+      partner_commission_rate: 5,
+    }),
+    // mesmo parceiro, negócio ainda aberto — não entra na comissão.
+    deal({ id: "p3", owner_id: "seller-a", status: "aberto", value: 2000, partner_id: "partner-1" }),
+    // outro parceiro, não deve contar pra partner-1.
+    deal({
+      id: "p4",
+      owner_id: "seller-a",
+      status: "ganho",
+      value: 1000,
+      partner_id: "partner-2",
+      partner_commission_rate: 50,
+    }),
+  ];
+
+  it("soma valor × taxa só dos negócios ganhos indicados por aquele parceiro", () => {
+    const stats = partnerCommissionFor(comParceiro, "partner-1");
+    expect(stats.wonCount).toBe(2);
+    expect(stats.total).toBe(1500); // 1000 + 500, ignora o aberto e o outro parceiro
+    expect(stats.commission).toBe(75); // 1000*5% + 500*5%
+  });
+
+  it("negócio sem parceiro indicador não entra em nenhum total", () => {
+    const semParceiro = deal({ id: "p5", owner_id: "seller-a", status: "ganho", value: 999 });
+    const stats = partnerCommissionFor([...comParceiro, semParceiro], "partner-1");
+    expect(stats.total).toBe(1500);
+  });
+
+  it("retorna zero quando o parceiro não aparece em nenhum negócio", () => {
+    expect(partnerCommissionFor(comParceiro, "partner-sem-negocio")).toEqual({
+      wonCount: 0,
+      total: 0,
+      commission: 0,
+    });
   });
 });
 

@@ -65,6 +65,9 @@ export type Deal = {
   value: number;
   status: string;
   lead_type: string;
+  commission_rate: number;
+  partner_id: string | null;
+  partner_commission_rate: number | null;
   closed_at: string | null;
   created_at: string;
 };
@@ -188,15 +191,31 @@ export function summarizeDeals(deals: Deal[], options: { ownerId?: string } = {}
   };
 }
 
-/** Comissão = taxa configurada do vendedor aplicada sobre os negócios ganhos. */
+/** Comissão = soma de (valor × taxa própria) de cada negócio ganho do vendedor. */
 export function commissionFor(deals: Deal[], profile: Profile) {
   const { wonCount, wonValue } = summarizeDeals(deals, { ownerId: profile.id });
+  const commission = deals
+    .filter((d) => d.owner_id === profile.id && d.status === "ganho")
+    .reduce((sum, d) => sum + (Number(d.value) * Number(d.commission_rate)) / 100, 0);
   return {
     wonCount,
     total: wonValue,
-    commission: (wonValue * Number(profile.commission_rate)) / 100,
+    commission,
     goalProgress:
       profile.monthly_goal > 0 ? Math.min(100, (wonValue / profile.monthly_goal) * 100) : 0,
+  };
+}
+
+/** Comissão do parceiro indicador = soma de (valor × taxa própria) dos negócios ganhos que ele indicou. */
+export function partnerCommissionFor(deals: Deal[], partnerId: string) {
+  const won = deals.filter((d) => d.partner_id === partnerId && d.status === "ganho");
+  return {
+    wonCount: won.length,
+    total: won.reduce((sum, d) => sum + Number(d.value), 0),
+    commission: won.reduce(
+      (sum, d) => sum + (Number(d.value) * Number(d.partner_commission_rate ?? 0)) / 100,
+      0,
+    ),
   };
 }
 

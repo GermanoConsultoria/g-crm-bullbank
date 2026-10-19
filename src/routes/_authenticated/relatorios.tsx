@@ -1,17 +1,40 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { History } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/crm/AppShell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   currency,
+  fetchContacts,
   fetchDeals,
   fetchProfiles,
   filterByPeriod,
+  shortDate,
   summarizeDeals,
   type Period,
 } from "@/lib/crm";
+
+const STATUS_LABEL: Record<string, string> = {
+  aberto: "Aberto",
+  ganho: "Ganho",
+  perdido: "Perdido",
+};
+
+const STATUS_VARIANT: Record<string, "secondary" | "default" | "destructive"> = {
+  aberto: "secondary",
+  ganho: "default",
+  perdido: "destructive",
+};
 
 type RelatoriosSearch = { vendorId?: string | undefined };
 
@@ -40,10 +63,24 @@ function ReportsPage() {
   const { vendorId } = Route.useSearch();
   const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
   const { data: allProfiles = [] } = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
+  const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const [period, setPeriod] = useState<Period>("mes");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const profiles = vendorId ? allProfiles.filter((p) => p.id === vendorId) : allProfiles;
-  const deals = filterByPeriod(vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals, period);
+  const scopedDeals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
+  const deals = filterByPeriod(scopedDeals, period);
+
+  // Histórico independe do filtro de período — é o extrato completo, mais recente primeiro.
+  const history = [...scopedDeals].sort(
+    (a, b) =>
+      new Date(b.closed_at ?? b.created_at).getTime() - new Date(a.closed_at ?? a.created_at).getTime(),
+  );
+  const contactName = (id: string | null) => contacts.find((c) => c.id === id)?.name ?? "—";
+  const profileName = (id: string) => {
+    const profile = allProfiles.find((p) => p.id === id);
+    return profile?.full_name || profile?.email || "—";
+  };
 
   const leadTypes = Array.from(new Set(deals.map((d) => d.lead_type)));
   const byLead = leadTypes
@@ -66,7 +103,10 @@ function ReportsPage() {
 
   return (
     <AppShell title="Relatórios" subtitle="Conversão por tipo de lead e desempenho do time">
-      <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-between mb-4">
+        <Button size="sm" variant="outline" onClick={() => setHistoryOpen(true)}>
+          <History className="size-4" /> Histórico
+        </Button>
         <div className="flex items-center rounded-md border border-input bg-background p-0.5">
           {PERIODS.map((p) => (
             <button
@@ -181,6 +221,71 @@ function ReportsPage() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Histórico de negócios</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2 font-medium">Negócio</th>
+                  <th className="px-3 py-2 font-medium">Cliente</th>
+                  <th className="px-3 py-2 font-medium">Vendedor</th>
+                  <th className="px-3 py-2 font-medium">Tipo de lead</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Valor</th>
+                  <th className="px-3 py-2 font-medium">Comissão</th>
+                  <th className="px-3 py-2 font-medium">Parceiro indicador</th>
+                  <th className="px-3 py-2 font-medium">Comissão parceiro</th>
+                  <th className="px-3 py-2 font-medium">Data</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {history.map((deal) => (
+                  <tr key={deal.id}>
+                    <td className="px-3 py-2 font-medium">{deal.title}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{contactName(deal.client_id)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{profileName(deal.owner_id)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{deal.lead_type}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant={STATUS_VARIANT[deal.status] ?? "secondary"}>
+                        {STATUS_LABEL[deal.status] ?? deal.status}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">{currency(Number(deal.value))}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {deal.status === "ganho"
+                        ? `${currency((Number(deal.value) * Number(deal.commission_rate)) / 100)} (${deal.commission_rate}%)`
+                        : `${deal.commission_rate}%`}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {deal.partner_id ? contactName(deal.partner_id) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {deal.partner_id
+                        ? deal.status === "ganho"
+                          ? `${currency((Number(deal.value) * Number(deal.partner_commission_rate ?? 0)) / 100)} (${deal.partner_commission_rate ?? 0}%)`
+                          : `${deal.partner_commission_rate ?? 0}%`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{shortDate(deal.closed_at ?? deal.created_at)}</td>
+                  </tr>
+                ))}
+                {history.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                      Nenhum negócio cadastrado ainda.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

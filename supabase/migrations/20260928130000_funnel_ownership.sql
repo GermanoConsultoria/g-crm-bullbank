@@ -10,6 +10,13 @@ UPDATE public.funnels
 SET owner_id = (SELECT user_id FROM public.user_roles WHERE role = 'admin' ORDER BY id LIMIT 1)
 WHERE owner_id IS NULL;
 
+-- Banco novo (nenhum admin cadastrado ainda neste ponto da migration — ex:
+-- ambiente local/CI criado do zero, antes do seed rodar): não há dono pra
+-- atribuir ao funil placeholder inserido por 20260923120000_funnels_table.sql.
+-- Remove em vez de falhar o ALTER COLUMN abaixo; stages órfãs somem junto
+-- via ON DELETE CASCADE. Em produção isso é sempre um no-op (já tinha admin).
+DELETE FROM public.funnels WHERE owner_id IS NULL;
+
 ALTER TABLE public.funnels ALTER COLUMN owner_id SET NOT NULL;
 
 DROP POLICY IF EXISTS "funnels_select_all" ON public.funnels;

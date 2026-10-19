@@ -31,7 +31,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   currency,
-  fetchClients,
+  fetchContacts,
   fetchDeals,
   fetchFunnels,
   fetchLeadTypes,
@@ -72,10 +72,11 @@ function FunnelBoardPage() {
   const { data: funnels = [] } = useQuery({ queryKey: ["funnels"], queryFn: fetchFunnels });
   const { data: allStages = [] } = useQuery({ queryKey: ["stages"], queryFn: fetchStages });
   const { data: allDeals = [] } = useQuery({ queryKey: ["deals"], queryFn: fetchDeals });
-  const { data: allClients = [] } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
+  const { data: allContacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const { data: leadTypes = [] } = useQuery({ queryKey: ["lead-types"], queryFn: fetchLeadTypes });
   const { data: allTasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });
 
+  const allClients = allContacts.filter((c) => c.type === "cliente");
   const deals = vendorId ? allDeals.filter((d) => d.owner_id === vendorId) : allDeals;
   const clients = vendorId ? allClients.filter((c) => c.owner_id === vendorId) : allClients;
   const tasks = vendorId ? allTasks.filter((t) => t.owner_id === vendorId) : allTasks;

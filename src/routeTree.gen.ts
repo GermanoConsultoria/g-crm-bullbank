@@ -12,12 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
+import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFormulariosRouteImport } from './routes/_authenticated/formularios'
 import { Route as AuthenticatedFunilRouteImport } from './routes/_authenticated/funil'
-import { Route as AuthenticatedParceirosRouteImport } from './routes/_authenticated/parceiros'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthenticatedTiposDeLeadRouteImport } from './routes/_authenticated/tipos-de-lead'
@@ -39,14 +38,14 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
-  id: '/clientes',
-  path: '/clientes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedComissoesRoute = AuthenticatedComissoesRouteImport.update({
   id: '/comissoes',
   path: '/comissoes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedContatosRoute = AuthenticatedContatosRouteImport.update({
+  id: '/contatos',
+  path: '/contatos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -63,11 +62,6 @@ const AuthenticatedFormulariosRoute =
 const AuthenticatedFunilRoute = AuthenticatedFunilRouteImport.update({
   id: '/funil',
   path: '/funil',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedParceirosRoute = AuthenticatedParceirosRouteImport.update({
-  id: '/parceiros',
-  path: '/parceiros',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
@@ -106,12 +100,11 @@ const AuthenticatedFunilFunnelIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
+  '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/formularios': typeof AuthenticatedFormulariosRoute
   '/funil': typeof AuthenticatedFunilRouteWithChildren
-  '/parceiros': typeof AuthenticatedParceirosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -122,11 +115,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
+  '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/formularios': typeof AuthenticatedFormulariosRoute
-  '/parceiros': typeof AuthenticatedParceirosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -139,12 +131,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
+  '/_authenticated/contatos': typeof AuthenticatedContatosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/formularios': typeof AuthenticatedFormulariosRoute
   '/_authenticated/funil': typeof AuthenticatedFunilRouteWithChildren
-  '/_authenticated/parceiros': typeof AuthenticatedParceirosRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/_authenticated/tipos-de-lead': typeof AuthenticatedTiposDeLeadRoute
@@ -157,12 +148,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
-    | '/clientes'
     | '/comissoes'
+    | '/contatos'
     | '/dashboard'
     | '/formularios'
     | '/funil'
-    | '/parceiros'
     | '/relatorios'
     | '/tarefas'
     | '/tipos-de-lead'
@@ -173,11 +163,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
-    | '/clientes'
     | '/comissoes'
+    | '/contatos'
     | '/dashboard'
     | '/formularios'
-    | '/parceiros'
     | '/relatorios'
     | '/tarefas'
     | '/tipos-de-lead'
@@ -189,12 +178,11 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/_authenticated/clientes'
     | '/_authenticated/comissoes'
+    | '/_authenticated/contatos'
     | '/_authenticated/dashboard'
     | '/_authenticated/formularios'
     | '/_authenticated/funil'
-    | '/_authenticated/parceiros'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/_authenticated/tipos-de-lead'
@@ -232,18 +220,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/clientes': {
-      id: '/_authenticated/clientes'
-      path: '/clientes'
-      fullPath: '/clientes'
-      preLoaderRoute: typeof AuthenticatedClientesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/comissoes': {
       id: '/_authenticated/comissoes'
       path: '/comissoes'
       fullPath: '/comissoes'
       preLoaderRoute: typeof AuthenticatedComissoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/contatos': {
+      id: '/_authenticated/contatos'
+      path: '/contatos'
+      fullPath: '/contatos'
+      preLoaderRoute: typeof AuthenticatedContatosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -265,13 +253,6 @@ declare module '@tanstack/react-router' {
       path: '/funil'
       fullPath: '/funil'
       preLoaderRoute: typeof AuthenticatedFunilRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/parceiros': {
-      id: '/_authenticated/parceiros'
-      path: '/parceiros'
-      fullPath: '/parceiros'
-      preLoaderRoute: typeof AuthenticatedParceirosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/relatorios': {
@@ -333,12 +314,11 @@ const AuthenticatedFunilRouteWithChildren =
   AuthenticatedFunilRoute._addFileChildren(AuthenticatedFunilRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
+  AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFormulariosRoute: typeof AuthenticatedFormulariosRoute
   AuthenticatedFunilRoute: typeof AuthenticatedFunilRouteWithChildren
-  AuthenticatedParceirosRoute: typeof AuthenticatedParceirosRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedTiposDeLeadRoute: typeof AuthenticatedTiposDeLeadRoute
@@ -346,12 +326,11 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
+  AuthenticatedContatosRoute: AuthenticatedContatosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFormulariosRoute: AuthenticatedFormulariosRoute,
   AuthenticatedFunilRoute: AuthenticatedFunilRouteWithChildren,
-  AuthenticatedParceirosRoute: AuthenticatedParceirosRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedTiposDeLeadRoute: AuthenticatedTiposDeLeadRoute,

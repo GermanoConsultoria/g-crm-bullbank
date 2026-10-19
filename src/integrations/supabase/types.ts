@@ -39,44 +39,73 @@ export type Database = {
   }
   public: {
     Tables: {
-      clients: {
+      contacts: {
         Row: {
           company: string | null
           created_at: string
+          document: string | null
           email: string | null
           id: string
-          lead_type: string
+          is_active: boolean
+          lead_type: string | null
+          legacy_form_submission_id: string | null
           name: string
           notes: string | null
           owner_id: string
           phone: string | null
+          segment: string | null
           source: string | null
+          specialty: string | null
+          type: string
+          updated_at: string
         }
         Insert: {
           company?: string | null
           created_at?: string
+          document?: string | null
           email?: string | null
           id?: string
-          lead_type?: string
+          is_active?: boolean
+          lead_type?: string | null
+          legacy_form_submission_id?: string | null
           name: string
           notes?: string | null
           owner_id: string
           phone?: string | null
+          segment?: string | null
           source?: string | null
+          specialty?: string | null
+          type: string
+          updated_at?: string
         }
         Update: {
           company?: string | null
           created_at?: string
+          document?: string | null
           email?: string | null
           id?: string
-          lead_type?: string
+          is_active?: boolean
+          lead_type?: string | null
+          legacy_form_submission_id?: string | null
           name?: string
           notes?: string | null
           owner_id?: string
           phone?: string | null
+          segment?: string | null
           source?: string | null
+          specialty?: string | null
+          type?: string
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_legacy_form_submission_id_fkey"
+            columns: ["legacy_form_submission_id"]
+            isOneToOne: true
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       deals: {
         Row: {
@@ -120,7 +149,7 @@ export type Database = {
             foreignKeyName: "deals_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
-            referencedRelation: "clients"
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -206,68 +235,6 @@ export type Database = {
           position?: number
         }
         Relationships: []
-      }
-      partners: {
-        Row: {
-          company: string | null
-          created_at: string
-          created_by: string | null
-          document: string | null
-          email: string | null
-          id: string
-          import_review_reason: string | null
-          is_active: boolean
-          legacy_form_submission_id: string | null
-          name: string
-          notes: string | null
-          phone: string | null
-          segment: string | null
-          specialty: string | null
-          updated_at: string
-        }
-        Insert: {
-          company?: string | null
-          created_at?: string
-          created_by?: string | null
-          document?: string | null
-          email?: string | null
-          id?: string
-          import_review_reason?: string | null
-          is_active?: boolean
-          legacy_form_submission_id?: string | null
-          name: string
-          notes?: string | null
-          phone?: string | null
-          segment?: string | null
-          specialty?: string | null
-          updated_at?: string
-        }
-        Update: {
-          company?: string | null
-          created_at?: string
-          created_by?: string | null
-          document?: string | null
-          email?: string | null
-          id?: string
-          import_review_reason?: string | null
-          is_active?: boolean
-          legacy_form_submission_id?: string | null
-          name?: string
-          notes?: string | null
-          phone?: string | null
-          segment?: string | null
-          specialty?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "partners_legacy_form_submission_id_fkey"
-            columns: ["legacy_form_submission_id"]
-            isOneToOne: true
-            referencedRelation: "form_submissions"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       profiles: {
         Row: {
@@ -382,7 +349,7 @@ export type Database = {
             foreignKeyName: "tasks_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
-            referencedRelation: "clients"
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {

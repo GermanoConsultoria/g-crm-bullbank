@@ -11,33 +11,26 @@ export type Profile = {
   force_password_change: boolean;
 };
 
-export type Client = {
+export type ContactType = "cliente" | "parceiro";
+
+export type Contact = {
   id: string;
+  type: ContactType;
   owner_id: string;
   name: string;
   company: string | null;
   email: string | null;
   phone: string | null;
-  lead_type: string;
-  source: string | null;
   notes: string | null;
-  created_at: string;
-};
-
-export type Partner = {
-  id: string;
-  name: string;
-  company: string | null;
+  // Específicos de cliente.
+  lead_type: string | null;
+  source: string | null;
+  // Específicos de parceiro.
   document: string | null;
-  email: string | null;
-  phone: string | null;
   segment: string | null;
   specialty: string | null;
-  notes: string | null;
   is_active: boolean;
-  created_by: string | null;
   legacy_form_submission_id: string | null;
-  import_review_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -116,13 +109,8 @@ async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message
 export const fetchProfiles = () =>
   unwrap<Profile[]>(supabase.from("profiles").select("*").order("full_name"));
 
-export const fetchClients = async () => {
-  const data = await unwrap<Client[]>(supabase.from("clients").select("*"));
-  return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
-};
-
-export const fetchPartners = async () => {
-  const data = await unwrap<Partner[]>(supabase.from("partners").select("*"));
+export const fetchContacts = async () => {
+  const data = await unwrap<Contact[]>(supabase.from("contacts").select("*"));
   return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 };
 

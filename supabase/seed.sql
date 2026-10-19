@@ -40,7 +40,7 @@ BEGIN
 -- ── 1. LIMPAR dados anteriores ─────────────────────────────
 DELETE FROM public.tasks;
 DELETE FROM public.deals;
-DELETE FROM public.clients;
+DELETE FROM public.contacts WHERE type = 'cliente';
 DELETE FROM public.stages;
 DELETE FROM public.user_roles;
 DELETE FROM public.profiles;
@@ -99,15 +99,15 @@ SELECT id INTO s4 FROM public.stages WHERE name = 'Negociação'       LIMIT 1;
 SELECT id INTO s5 FROM public.stages WHERE name = 'Fechamento'       LIMIT 1;
 
 -- ── 6. CLIENTES ────────────────────────────────────────────
-INSERT INTO public.clients (id, owner_id, name, company, email, phone, lead_type, source, notes) VALUES
-  (c1, uid_admin, 'Fernanda Lima',     'Lima Construções',     'fernanda@limaconstrucoes.com.br', '(11) 98765-4321', 'Indicação',        'Cliente antigo',       'Interessada em pacote empresarial completo.'),
-  (c2, uid_admin, 'Bruno Alves',       'TechStart Ltda',       'bruno@techstart.com.br',          '(21) 99123-4567', 'Google Ads',        'Campanha maio/2026',   'Veio pelo anúncio de gestão de equipes.'),
-  (c3, uid_vend1, 'Mariana Costa',     'Costa & Filhos',       'mariana@costafilhos.com.br',      '(31) 97654-3210', 'Instagram',         'Post patrocinado',     'Quer migrar de planilha para CRM.'),
-  (c4, uid_vend1, 'Diego Ferreira',    'Ferreira Imóveis',     'diego@ferreiramoveis.com.br',     '(41) 96543-2109', 'Prospecção ativa',  NULL,                   'Contato frio, demonstrou interesse após demo.'),
-  (c5, uid_vend2, 'Juliana Ramos',     'Ramos Advocacia',      'juliana@ramosadv.com.br',         '(51) 95432-1098', 'Indicação',         'Rafael Souza',         'Advogada sócia, avalia licença para 5 usuários.'),
-  (c6, uid_vend2, 'Carlos Oliveira',   'Oliveira Seguros',     'carlos@oliveiraseguros.com.br',   '(61) 94321-0987', 'Evento',            'Feira Negócios 2026',  'Pegou folder no estande, retornou por e-mail.'),
-  (c7, uid_admin, 'Priya Patel',       'Patel Importações',    'priya@patelimport.com.br',        '(11) 93210-9876', 'Site',              'Formulário de contato','Empresa de importação, 20 vendedores.'),
-  (c8, uid_vend1, 'Roberto Nascimento','Nascimento Logística',  'roberto@nasclog.com.br',          '(81) 92109-8765', 'Google Ads',        'Campanha junho/2026',  'Logística com 3 filiais, precisa de relatórios avançados.');
+INSERT INTO public.contacts (id, type, owner_id, name, company, email, phone, lead_type, source, notes) VALUES
+  (c1, 'cliente', uid_admin, 'Fernanda Lima',     'Lima Construções',     'fernanda@limaconstrucoes.com.br', '(11) 98765-4321', 'Indicação',        'Cliente antigo',       'Interessada em pacote empresarial completo.'),
+  (c2, 'cliente', uid_admin, 'Bruno Alves',       'TechStart Ltda',       'bruno@techstart.com.br',          '(21) 99123-4567', 'Google Ads',        'Campanha maio/2026',   'Veio pelo anúncio de gestão de equipes.'),
+  (c3, 'cliente', uid_vend1, 'Mariana Costa',     'Costa & Filhos',       'mariana@costafilhos.com.br',      '(31) 97654-3210', 'Instagram',         'Post patrocinado',     'Quer migrar de planilha para CRM.'),
+  (c4, 'cliente', uid_vend1, 'Diego Ferreira',    'Ferreira Imóveis',     'diego@ferreiramoveis.com.br',     '(41) 96543-2109', 'Prospecção ativa',  NULL,                   'Contato frio, demonstrou interesse após demo.'),
+  (c5, 'cliente', uid_vend2, 'Juliana Ramos',     'Ramos Advocacia',      'juliana@ramosadv.com.br',         '(51) 95432-1098', 'Indicação',         'Rafael Souza',         'Advogada sócia, avalia licença para 5 usuários.'),
+  (c6, 'cliente', uid_vend2, 'Carlos Oliveira',   'Oliveira Seguros',     'carlos@oliveiraseguros.com.br',   '(61) 94321-0987', 'Evento',            'Feira Negócios 2026',  'Pegou folder no estande, retornou por e-mail.'),
+  (c7, 'cliente', uid_admin, 'Priya Patel',       'Patel Importações',    'priya@patelimport.com.br',        '(11) 93210-9876', 'Site',              'Formulário de contato','Empresa de importação, 20 vendedores.'),
+  (c8, 'cliente', uid_vend1, 'Roberto Nascimento','Nascimento Logística',  'roberto@nasclog.com.br',          '(81) 92109-8765', 'Google Ads',        'Campanha junho/2026',  'Logística com 3 filiais, precisa de relatórios avançados.');
 
 -- ── 7. DEALS ───────────────────────────────────────────────
 INSERT INTO public.deals (id, owner_id, client_id, stage_id, title, value, status, lead_type, closed_at, created_at) VALUES

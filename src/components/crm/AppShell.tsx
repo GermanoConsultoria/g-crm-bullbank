@@ -8,7 +8,6 @@ import {
   BarChart3,
   Wallet,
   Tags,
-  Handshake,
   UserCog,
   LogOut,
   PanelLeftOpen,
@@ -32,11 +31,10 @@ import { ForcePasswordDialog } from "@/components/crm/ForcePasswordDialog";
 // vendedor (ele "controla", não cadastra em nome próprio).
 const sellerWorkItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/clientes",  label: "Contatos",  icon: Users },
+  { to: "/contatos",  label: "Contatos",  icon: Users },
   { to: "/funil",     label: "Funil",     icon: KanbanSquare },
   { to: "/tarefas",   label: "Tarefas",   icon: ListChecks },
   { to: "/formularios", label: "Formulários", icon: ClipboardList },
-  { to: "/parceiros", label: "Parceiros", icon: Handshake },
   { to: "/relatorios",label: "Relatórios",icon: BarChart3 },
   { to: "/comissoes", label: "Comissões", icon: Wallet },
 ] as const;
@@ -46,9 +44,8 @@ const sellerWorkItems = [
 // clientes de um vendedor específico, o admin entra na pasta dele (abaixo).
 const adminTopItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/clientes", label: "Contatos", icon: Users },
+  { to: "/contatos", label: "Contatos", icon: Users },
   { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags },
-  { to: "/parceiros", label: "Parceiros", icon: Handshake },
   { to: "/usuarios", label: "Usuários", icon: UserCog },
 ] as const;
 

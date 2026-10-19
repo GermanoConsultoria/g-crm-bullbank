@@ -5,6 +5,7 @@ import { History } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/crm/AppShell";
+import { ClientVolumeDialog } from "@/components/crm/ClientVolumeDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   churnFor,
+  clientVolumeFor,
   currency,
   fetchContacts,
   fetchDeals,
@@ -24,6 +26,7 @@ import {
   onlySellers,
   shortDate,
   summarizeDeals,
+  type Contact,
   type Period,
 } from "@/lib/crm";
 
@@ -70,6 +73,7 @@ function ReportsPage() {
   const { data: contacts = [] } = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
   const [period, setPeriod] = useState<Period>("mes");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [volumeTarget, setVolumeTarget] = useState<Contact | null>(null);
 
   // Admin não é vendedor: some da tabela de desempenho por vendedor (mas
   // continua aparecendo no Histórico se algum negócio antigo for dele).
@@ -91,6 +95,12 @@ function ReportsPage() {
 
   const clientContacts = contacts.filter((c) => c.type === "cliente" && (!vendorId || c.owner_id === vendorId));
   const churn = churnFor(clientContacts, scopedDeals, period);
+
+  // Independe do filtro de período — é um acumulado histórico, igual ao Histórico de negócios.
+  const volumeRanking = clientContacts
+    .map((c) => ({ contact: c, volume: clientVolumeFor(scopedDeals, c.id, c.churned_at) }))
+    .filter((row) => row.volume.wonCount > 0)
+    .sort((a, b) => b.volume.total - a.volume.total);
 
   const leadTypes = Array.from(new Set(deals.map((d) => d.lead_type)));
   const byLead = leadTypes
@@ -232,6 +242,41 @@ function ReportsPage() {
         </table>
       </div>
 
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Clientes por volume de compra</h2>
+      <div className="panel mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Empresa</th>
+              <th className="px-4 py-3 font-medium">Negócios ganhos</th>
+              <th className="px-4 py-3 font-medium">Total comprado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {volumeRanking.map(({ contact, volume }) => (
+              <tr
+                key={contact.id}
+                className="cursor-pointer hover:bg-secondary/40"
+                onClick={() => setVolumeTarget(contact)}
+              >
+                <td className="px-4 py-3 font-medium">{contact.name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{contact.company || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{volume.wonCount}</td>
+                <td className="px-4 py-3">{currency(volume.total)}</td>
+              </tr>
+            ))}
+            {volumeRanking.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  Nenhum cliente com negócio ganho ainda.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
       <h2 className="mt-8 text-sm font-medium text-muted-foreground">Churn de clientes</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="panel p-4">
@@ -346,6 +391,13 @@ function ReportsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ClientVolumeDialog
+        contact={volumeTarget}
+        deals={scopedDeals}
+        open={!!volumeTarget}
+        onOpenChange={(next) => !next && setVolumeTarget(null)}
+      />
     </AppShell>
   );
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   churnFor,
+  clientVolumeFor,
   commissionFor,
   filterByPeriod,
   isActiveClient,
@@ -187,6 +188,78 @@ describe("partnerCommissionFor() — comissão do parceiro indicador", () => {
       total: 0,
       commission: 0,
     });
+  });
+});
+
+describe("clientVolumeFor() — total comprado e evolução mensal de um cliente", () => {
+  it("retorna zerado quando o cliente não tem nenhum negócio ganho", () => {
+    const result = clientVolumeFor(deals, "cliente-sem-negocio");
+    expect(result).toEqual({ wonCount: 0, total: 0, months: [] });
+  });
+
+  it("agrupa por mês (closed_at ?? created_at) e acumula o total mês a mês", () => {
+    const porCliente: Deal[] = [
+      deal({
+        id: "v1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 100,
+        closed_at: "2026-01-10T00:00:00.000Z",
+      }),
+      deal({
+        id: "v2",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 50,
+        closed_at: "2026-01-20T00:00:00.000Z",
+      }),
+      deal({
+        id: "v3",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 200,
+        closed_at: "2026-02-05T00:00:00.000Z",
+      }),
+    ];
+    const result = clientVolumeFor(porCliente, "c1");
+    expect(result.wonCount).toBe(3);
+    expect(result.total).toBe(350);
+    expect(result.months.map((m) => [m.month, m.value, m.cumulative])).toEqual([
+      ["2026-01", 150, 150],
+      ["2026-02", 200, 350],
+    ]);
+  });
+
+  it("ignora negócios abertos/perdidos e de outros clientes", () => {
+    const porCliente: Deal[] = [
+      deal({ id: "v1", owner_id: "seller-a", client_id: "c1", status: "ganho", value: 100 }),
+      deal({ id: "v2", owner_id: "seller-a", client_id: "c1", status: "aberto", value: 999 }),
+      deal({ id: "v3", owner_id: "seller-a", client_id: "c1", status: "perdido", value: 999 }),
+      deal({
+        id: "v4",
+        owner_id: "seller-a",
+        client_id: "outro-cliente",
+        status: "ganho",
+        value: 999,
+      }),
+    ];
+    expect(clientVolumeFor(porCliente, "c1").total).toBe(100);
+  });
+
+  it("cai para created_at quando closed_at é null, igual a filterByPeriod", () => {
+    const sem = deal({
+      id: "v1",
+      owner_id: "seller-a",
+      client_id: "c1",
+      status: "ganho",
+      value: 100,
+      closed_at: null,
+      created_at: "2026-03-15T00:00:00.000Z",
+    });
+    expect(clientVolumeFor([sem], "c1").months.map((m) => m.month)).toEqual(["2026-03"]);
   });
 });
 

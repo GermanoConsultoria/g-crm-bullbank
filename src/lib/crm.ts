@@ -238,6 +238,138 @@ export function partnerCommissionFor(deals: Deal[], partnerId: string) {
   };
 }
 
+export type ClientVolumeMonth = {
+  month: string;
+  label: string;
+  value: number;
+  count: number;
+  cumulative: number;
+  churned?: boolean;
+};
+export type ClientVolume = {
+  wonCount: number;
+  total: number;
+  months: ClientVolumeMonth[];
+  churnedMonth?: string;
+};
+
+// Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }) gera "jan. de 26",
+// "fev. de 26" etc. — verboso demais pro eixo X do gráfico (as labels se sobrepõem e
+// na prática só se lê "de 26" em todo ponto). Por isso o formato curto "mmm/aa" manual.
+const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const monthLabel = (year: number, monthIndex: number) =>
+  `${MONTH_ABBR[monthIndex]}/${String(year).slice(-2)}`;
+
+const monthKeyOf = (value: string) => {
+  const ref = new Date(value);
+  return `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/**
+ * Volume comprado por um cliente = negócios ganhos dele, agrupados por mês
+ * (closed_at ?? created_at, igual a filterByPeriod) com total acumulado mês a
+ * mês — a "curva de crescimento" usada no gráfico de evolução. Se `churnedAt`
+ * for informado, o mês do cancelamento entra na linha do tempo (com valor 0
+ * quando não houver compra nesse mês) para marcar o ponto no gráfico.
+ */
+export function clientVolumeFor(
+  deals: Deal[],
+  clientId: string,
+  churnedAt?: string | null,
+): ClientVolume {
+  const won = deals.filter((d) => d.client_id === clientId && d.status === "ganho");
+
+  const byMonth = new Map<string, { total: number; count: number }>();
+  for (const d of won) {
+    const key = monthKeyOf(d.closed_at ?? d.created_at);
+    const entry = byMonth.get(key) ?? { total: 0, count: 0 };
+    entry.total += Number(d.value);
+    entry.count += 1;
+    byMonth.set(key, entry);
+  }
+
+  const churnedMonth = churnedAt ? monthKeyOf(churnedAt) : undefined;
+  if (churnedMonth && !byMonth.has(churnedMonth)) byMonth.set(churnedMonth, { total: 0, count: 0 });
+
+  let cumulative = 0;
+  const months = Array.from(byMonth.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, { total, count }]) => {
+      cumulative += total;
+      const year = Number(month.slice(0, 4));
+      const m = Number(month.slice(5, 7));
+      return {
+        month,
+        label: monthLabel(year, m - 1),
+        value: total,
+        count,
+        cumulative,
+        churned: month === churnedMonth,
+      };
+    });
+
+  const result: ClientVolume = {
+    wonCount: won.length,
+    total: won.reduce((sum, d) => sum + Number(d.value), 0),
+    months,
+  };
+  if (churnedMonth) result.churnedMonth = churnedMonth;
+  return result;
+}
+
+export type ClientVolumeDay = {
+  day: string;
+  label: string;
+  value: number;
+  count: number;
+  cumulative: number;
+  churned?: boolean;
+};
+
+/**
+ * Mesma lógica de clientVolumeFor(), mas restrita a um mês (year/month, 1-12)
+ * e agrupada por dia — usada na visão "Mês" do gráfico de evolução, pro
+ * acumulado começar do zero dentro do mês selecionado.
+ */
+export function clientVolumeByDayFor(
+  deals: Deal[],
+  clientId: string,
+  year: number,
+  month: number,
+  churnedAt?: string | null,
+): ClientVolumeDay[] {
+  const won = deals.filter((d) => d.client_id === clientId && d.status === "ganho");
+
+  const byDay = new Map<number, { total: number; count: number }>();
+  for (const d of won) {
+    const ref = new Date(d.closed_at ?? d.created_at);
+    if (ref.getFullYear() !== year || ref.getMonth() + 1 !== month) continue;
+    const day = ref.getDate();
+    const entry = byDay.get(day) ?? { total: 0, count: 0 };
+    entry.total += Number(d.value);
+    entry.count += 1;
+    byDay.set(day, entry);
+  }
+
+  let churnedDay: number | undefined;
+  if (churnedAt) {
+    const ref = new Date(churnedAt);
+    if (ref.getFullYear() === year && ref.getMonth() + 1 === month) {
+      churnedDay = ref.getDate();
+      if (!byDay.has(churnedDay)) byDay.set(churnedDay, { total: 0, count: 0 });
+    }
+  }
+
+  let cumulative = 0;
+  return Array.from(byDay.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([day, { total, count }]) => {
+      cumulative += total;
+      const label = String(day).padStart(2, "0");
+      return { day: label, label, value: total, count, cumulative, churned: day === churnedDay };
+    });
+}
+
 export type Period = "semana" | "mes" | "ano";
 
 /** Filtra negócios por período de referência (`closed_at ?? created_at`). Usada em relatorios.tsx. */

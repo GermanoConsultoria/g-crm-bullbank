@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Power, PowerOff, RotateCcw, Trash2, UserX } from "lucide-react";
+import { Pencil, Plus, Power, PowerOff, RotateCcw, Trash2, TrendingUp, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/crm/AppShell";
+import { ClientVolumeDialog } from "@/components/crm/ClientVolumeDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,6 +122,7 @@ function ContatosPage() {
   const [pendingDeactivate, setPendingDeactivate] = useState<Contact | null>(null);
   const [churnTarget, setChurnTarget] = useState<Contact | null>(null);
   const [churnForm, setChurnForm] = useState({ date: "", reason: "" });
+  const [volumeTarget, setVolumeTarget] = useState<Contact | null>(null);
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -502,6 +504,13 @@ function ContatosPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <ClientVolumeDialog
+            contact={volumeTarget}
+            deals={deals}
+            open={!!volumeTarget}
+            onOpenChange={(next) => !next && setVolumeTarget(null)}
+          />
         </>
       }
     >
@@ -591,6 +600,14 @@ function ContatosPage() {
                       </Button>
                       {tipo === "cliente" ? (
                         <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Ver volume de compras"
+                            onClick={() => setVolumeTarget(contact)}
+                          >
+                            <TrendingUp className="size-4" />
+                          </Button>
                           {contact.churned_at ? (
                             <Button
                               size="icon"

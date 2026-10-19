@@ -45,6 +45,7 @@ const sellerWorkItems = [
 const adminTopItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/contatos", label: "Contatos", icon: Users },
+  { to: "/comissoes", label: "Comissões", icon: Wallet },
   { to: "/tipos-de-lead", label: "Tipos de lead", icon: Tags },
   { to: "/usuarios", label: "Usuários", icon: UserCog },
 ] as const;

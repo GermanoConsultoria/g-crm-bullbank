@@ -293,6 +293,36 @@ function Dashboard() {
               </table>
             </div>
           )}
+
+          {churn.excludedChurn.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                Cancelaram no mês, mas viraram cliente no mesmo mês — não entram na taxa de churn acima.
+              </p>
+              <div className="panel mt-2 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Cliente cancelado no mês</th>
+                      <th className="px-4 py-3 font-medium">Empresa</th>
+                      <th className="px-4 py-3 font-medium">Motivo</th>
+                      <th className="px-4 py-3 font-medium">Cancelado em</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {churn.excludedChurn.map((c) => (
+                      <tr key={c.id}>
+                        <td className="px-4 py-3 font-medium">{c.name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.company || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.churn_reason || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{shortDate(c.churned_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
 

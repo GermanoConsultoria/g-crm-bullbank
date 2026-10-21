@@ -430,18 +430,27 @@ export function isActiveClient(contact: Contact, deals: Deal[]) {
   );
 }
 
+type ChurnedClient = {
+  id: string;
+  name: string;
+  company: string | null;
+  churned_at: string;
+  churn_reason: string | null;
+  wonValue: number;
+};
+
 export type ChurnSummary = {
   activeAtStart: number;
   churned: number;
   rate: number;
-  churnedClients: {
-    id: string;
-    name: string;
-    company: string | null;
-    churned_at: string;
-    churn_reason: string | null;
-    wonValue: number;
-  }[];
+  churnedClients: ChurnedClient[];
+  /**
+   * Cancelou dentro do período, mas ativou (primeiro negócio ganho) também
+   * dentro do mesmo período — por isso não entra no cálculo da taxa (não
+   * estava "ativo no início do período"). Listado à parte pra esse
+   * cancelamento não sumir silenciosamente do relatório.
+   */
+  excludedChurn: ChurnedClient[];
 };
 
 /**
@@ -467,13 +476,30 @@ export function churnFor(contacts: Contact[], deals: Deal[], period: Period): Ch
   };
 
   let activeAtStart = 0;
-  const churnedClients: ChurnSummary["churnedClients"] = [];
+  const churnedClients: ChurnedClient[] = [];
+  const excludedChurn: ChurnedClient[] = [];
 
   for (const client of clients) {
     const activatedAt = activationDate(client.id);
-    if (!activatedAt || activatedAt >= start) continue;
-
     const churnedAt = client.churned_at ? new Date(client.churned_at) : null;
+
+    if (!activatedAt || activatedAt >= start) {
+      // Ativou dentro do próprio período (ou nunca ativou): não conta como
+      // "ativo no início". Se além disso já cancelou dentro do período,
+      // registra à parte em vez de deixar o cancelamento invisível.
+      if (churnedAt && churnedAt >= start) {
+        excludedChurn.push({
+          id: client.id,
+          name: client.name,
+          company: client.company,
+          churned_at: client.churned_at!,
+          churn_reason: client.churn_reason,
+          wonValue: wonValueFor(client.id),
+        });
+      }
+      continue;
+    }
+
     if (churnedAt && churnedAt < start) continue; // já tinha cancelado antes do período começar
 
     activeAtStart += 1;
@@ -494,5 +520,6 @@ export function churnFor(contacts: Contact[], deals: Deal[], period: Period): Ch
     churned: churnedClients.length,
     rate: activeAtStart > 0 ? (churnedClients.length / activeAtStart) * 100 : 0,
     churnedClients,
+    excludedChurn,
   };
 }

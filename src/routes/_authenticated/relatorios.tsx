@@ -334,6 +334,39 @@ function ReportsPage() {
         </table>
       </div>
 
+      {churn.excludedChurn.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs text-muted-foreground">
+            Cancelaram dentro do período, mas viraram cliente no mesmo período — não entram na taxa de churn
+            acima (não estavam "ativos no início do período").
+          </p>
+          <div className="panel mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-3 font-medium">Cliente</th>
+                  <th className="px-4 py-3 font-medium">Empresa</th>
+                  <th className="px-4 py-3 font-medium">Receita gerada</th>
+                  <th className="px-4 py-3 font-medium">Motivo</th>
+                  <th className="px-4 py-3 font-medium">Cancelado em</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {churn.excludedChurn.map((c) => (
+                  <tr key={c.id}>
+                    <td className="px-4 py-3 font-medium">{c.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.company || "—"}</td>
+                    <td className="px-4 py-3">{currency(c.wonValue)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.churn_reason || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{shortDate(c.churned_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="max-w-5xl">
           <DialogHeader>

@@ -704,6 +704,7 @@ describe("churnFor() — taxa de churn do período", () => {
       churned: 0,
       rate: 0,
       churnedClients: [],
+      excludedChurn: [],
     });
   });
 
@@ -711,5 +712,39 @@ describe("churnFor() — taxa de churn do período", () => {
     const parceiro = contact({ id: "p1", name: "Parceiro", type: "parceiro" });
     const result = churnFor([parceiro], [], "mes");
     expect(result.activeAtStart).toBe(0);
+  });
+
+  it("lista em excludedChurn quem ativou e cancelou dentro do mesmo período", () => {
+    const relampago = contact({
+      id: "c1",
+      name: "Cliente relâmpago",
+      company: "Empresa Y",
+      churned_at: "2026-10-12T00:00:00.000Z", // dentro de outubro
+      churn_reason: "Desistiu",
+    });
+    const deals = [
+      deal({
+        id: "d1",
+        owner_id: "seller-a",
+        client_id: "c1",
+        status: "ganho",
+        value: 500,
+        closed_at: "2026-10-05T00:00:00.000Z", // também dentro de outubro
+      }),
+    ];
+    const result = churnFor([relampago], deals, "mes");
+    expect(result.activeAtStart).toBe(0);
+    expect(result.churned).toBe(0);
+    expect(result.churnedClients).toEqual([]);
+    expect(result.excludedChurn).toEqual([
+      {
+        id: "c1",
+        name: "Cliente relâmpago",
+        company: "Empresa Y",
+        churned_at: "2026-10-12T00:00:00.000Z",
+        churn_reason: "Desistiu",
+        wonValue: 500,
+      },
+    ]);
   });
 });

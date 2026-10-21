@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Power, PowerOff, RotateCcw, Trash2, TrendingUp, UserX } from "lucide-react";
+import { ArrowUpRight, Pencil, Plus, Power, PowerOff, RotateCcw, Trash2, TrendingUp, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/crm/AppShell";
 import { ClientVolumeDialog } from "@/components/crm/ClientVolumeDialog";
+import { PartnerCommissionDialog } from "@/components/crm/PartnerCommissionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,6 +79,8 @@ type FormState = {
   document: string;
   segment: string;
   specialty: string;
+  default_partner_id: string;
+  default_partner_commission_rate: string;
 };
 
 const empty: FormState = {
@@ -91,6 +94,8 @@ const empty: FormState = {
   document: "",
   segment: "",
   specialty: "",
+  default_partner_id: "",
+  default_partner_commission_rate: "",
 };
 
 function ContatosPage() {
@@ -111,6 +116,7 @@ function ContatosPage() {
   const byType = allContacts.filter((c) => c.type === tipo);
   const contacts = tipo === "cliente" && vendorId ? byType.filter((c) => c.owner_id === vendorId) : byType;
   const sellerName = tipo === "cliente" && vendorId ? allProfiles.find((p) => p.id === vendorId)?.full_name : null;
+  const activePartners = allContacts.filter((c) => c.type === "parceiro" && c.is_active);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -123,6 +129,7 @@ function ContatosPage() {
   const [churnTarget, setChurnTarget] = useState<Contact | null>(null);
   const [churnForm, setChurnForm] = useState({ date: "", reason: "" });
   const [volumeTarget, setVolumeTarget] = useState<Contact | null>(null);
+  const [partnerReportTarget, setPartnerReportTarget] = useState<Contact | null>(null);
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -150,7 +157,14 @@ function ContatosPage() {
       };
       const specific =
         tipo === "cliente"
-          ? { lead_type: form.lead_type, source: form.source }
+          ? {
+              lead_type: form.lead_type,
+              source: form.source,
+              default_partner_id: form.default_partner_id || null,
+              default_partner_commission_rate: form.default_partner_id
+                ? Number(form.default_partner_commission_rate || 0)
+                : null,
+            }
           : { document: form.document, segment: form.segment, specialty: form.specialty };
 
       if (editing) {
@@ -261,6 +275,9 @@ function ContatosPage() {
       document: contact.document ?? "",
       segment: contact.segment ?? "",
       specialty: contact.specialty ?? "",
+      default_partner_id: contact.default_partner_id ?? "",
+      default_partner_commission_rate:
+        contact.default_partner_commission_rate != null ? String(contact.default_partner_commission_rate) : "",
     });
     setOwnerId(contact.owner_id);
     setOpen(true);
@@ -365,6 +382,40 @@ function ContatosPage() {
                   <div className="space-y-1.5">
                     <Label>Especialidade</Label>
                     <Input value={form.specialty} onChange={set("specialty")} />
+                  </div>
+                )}
+                {tipo === "cliente" && (
+                  <div className="space-y-1.5">
+                    <Label>Parceiro indicador padrão</Label>
+                    <select
+                      value={form.default_partner_id}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          default_partner_id: e.target.value,
+                          default_partner_commission_rate: e.target.value ? p.default_partner_commission_rate : "",
+                        }))
+                      }
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">Sem parceiro</option>
+                      {activePartners.map((partner) => (
+                        <option key={partner.id} value={partner.id}>
+                          {partner.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {tipo === "cliente" && form.default_partner_id && (
+                  <div className="space-y-1.5">
+                    <Label>Comissão do parceiro (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={form.default_partner_commission_rate}
+                      onChange={set("default_partner_commission_rate")}
+                    />
                   </div>
                 )}
                 {tipo === "cliente" && isAdmin && (
@@ -511,6 +562,14 @@ function ContatosPage() {
             open={!!volumeTarget}
             onOpenChange={(next) => !next && setVolumeTarget(null)}
           />
+
+          <PartnerCommissionDialog
+            partner={partnerReportTarget}
+            deals={deals}
+            contacts={allContacts}
+            open={!!partnerReportTarget}
+            onOpenChange={(next) => !next && setPartnerReportTarget(null)}
+          />
         </>
       }
     >
@@ -546,7 +605,21 @@ function ContatosPage() {
           <tbody className="divide-y divide-border">
             {filtered.map((contact) => (
               <tr key={contact.id} className="hover:bg-secondary/40">
-                <td className="px-4 py-3 font-medium">{contact.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  {tipo === "parceiro" ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 hover:text-primary"
+                      title="Ver comissões do parceiro"
+                      onClick={() => setPartnerReportTarget(contact)}
+                    >
+                      {contact.name}
+                      <ArrowUpRight className="size-3.5 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    contact.name
+                  )}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{contact.company || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{contact.email || contact.phone || "—"}</td>
                 {tipo === "cliente" ? (

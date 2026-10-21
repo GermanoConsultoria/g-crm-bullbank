@@ -27,6 +27,8 @@ export type Contact = {
   source: string | null;
   churned_at: string | null;
   churn_reason: string | null;
+  default_partner_id: string | null;
+  default_partner_commission_rate: number | null;
   // Específicos de parceiro.
   document: string | null;
   segment: string | null;
@@ -256,6 +258,99 @@ export function partnerCommissionFor(deals: Deal[], partnerId: string) {
   };
 }
 
+export type PartnerReportRow = {
+  partnerId: string;
+  partnerName: string;
+  clientId: string;
+  clientName: string;
+  value: number;
+  commissionRate: number;
+  commission: number;
+  /** "YYYY-MM-DD" — dia de contacts.created_at do cliente, aplicado ao mês seguinte ao do relatório. */
+  paymentDate: string;
+};
+
+export type PartnerMonthlyReport = {
+  month: string;
+  label: string;
+  rows: PartnerReportRow[];
+  totalValue: number;
+  totalCommission: number;
+};
+
+/**
+ * Dia de pagamento = dia-do-mês de contacts.created_at do CLIENTE, aplicado
+ * ao mês seguinte ao mês de referência (o mês do relatório). Se esse dia não
+ * existir no mês seguinte (ex.: cliente cadastrado dia 31, mês seguinte é
+ * fevereiro), usa o último dia do mês seguinte (clamping).
+ */
+function paymentDateFor(clientCreatedAt: string, referenceMonth: string): string {
+  const day = new Date(clientCreatedAt).getDate();
+  const year = Number(referenceMonth.slice(0, 4));
+  const month = Number(referenceMonth.slice(5, 7)); // 1-12 (mês de referência)
+  const lastDayNextMonth = new Date(year, month + 1, 0).getDate();
+  const clampedDay = Math.min(day, lastDayNextMonth);
+  const paymentDate = new Date(year, month, clampedDay); // "month" (1-based) == índice 0-based do mês seguinte
+  return `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, "0")}-${String(paymentDate.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Relatório mensal de comissão de um parceiro, agrupado por mês
+ * (closed_at ?? created_at, igual a filterByPeriod) e, dentro de cada mês,
+ * por cliente indicado — um parceiro pode ter mais de um negócio ganho do
+ * mesmo cliente no mesmo mês, então soma value/commission e expõe a taxa
+ * "efetiva" da linha (commission/value*100), em vez de só pegar a taxa de
+ * um dos deals, que poderia divergir entre eles.
+ */
+export function partnerMonthlyReports(
+  deals: Deal[],
+  contacts: Contact[],
+  partnerId: string,
+): PartnerMonthlyReport[] {
+  const partner = contacts.find((c) => c.id === partnerId);
+  const won = deals.filter((d) => d.partner_id === partnerId && d.status === "ganho" && d.client_id);
+
+  const byMonth = new Map<string, Map<string, { value: number; commission: number }>>();
+  for (const d of won) {
+    const month = monthKeyOf(d.closed_at ?? d.created_at);
+    const byClient = byMonth.get(month) ?? new Map();
+    const entry = byClient.get(d.client_id!) ?? { value: 0, commission: 0 };
+    entry.value += Number(d.value);
+    entry.commission += (Number(d.value) * Number(d.partner_commission_rate ?? 0)) / 100;
+    byClient.set(d.client_id!, entry);
+    byMonth.set(month, byClient);
+  }
+
+  return Array.from(byMonth.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, byClient]) => {
+      const year = Number(month.slice(0, 4));
+      const m = Number(month.slice(5, 7));
+      const rows: PartnerReportRow[] = Array.from(byClient.entries())
+        .map(([clientId, { value, commission }]) => {
+          const client = contacts.find((c) => c.id === clientId);
+          return {
+            partnerId,
+            partnerName: partner?.name ?? "—",
+            clientId,
+            clientName: client?.name ?? "—",
+            value,
+            commissionRate: value > 0 ? (commission / value) * 100 : 0,
+            commission,
+            paymentDate: client ? paymentDateFor(client.created_at, month) : "",
+          };
+        })
+        .sort((a, b) => a.clientName.localeCompare(b.clientName, "pt-BR", { sensitivity: "base" }));
+      return {
+        month,
+        label: monthLabel(year, m - 1),
+        rows,
+        totalValue: rows.reduce((s, r) => s + r.value, 0),
+        totalCommission: rows.reduce((s, r) => s + r.commission, 0),
+      };
+    });
+}
+
 export type ClientVolumeMonth = {
   month: string;
   label: string;
@@ -275,10 +370,10 @@ export type ClientVolume = {
 // "fev. de 26" etc. — verboso demais pro eixo X do gráfico (as labels se sobrepõem e
 // na prática só se lê "de 26" em todo ponto). Por isso o formato curto "mmm/aa" manual.
 const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const monthLabel = (year: number, monthIndex: number) =>
+export const monthLabel = (year: number, monthIndex: number) =>
   `${MONTH_ABBR[monthIndex]}/${String(year).slice(-2)}`;
 
-const monthKeyOf = (value: string) => {
+export const monthKeyOf = (value: string) => {
   const ref = new Date(value);
   return `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`;
 };

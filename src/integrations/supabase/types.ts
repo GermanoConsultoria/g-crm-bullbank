@@ -45,6 +45,8 @@ export type Database = {
           churned_at: string | null
           company: string | null
           created_at: string
+          default_partner_commission_rate: number | null
+          default_partner_id: string | null
           document: string | null
           email: string | null
           id: string
@@ -66,6 +68,8 @@ export type Database = {
           churned_at?: string | null
           company?: string | null
           created_at?: string
+          default_partner_commission_rate?: number | null
+          default_partner_id?: string | null
           document?: string | null
           email?: string | null
           id?: string
@@ -87,6 +91,8 @@ export type Database = {
           churned_at?: string | null
           company?: string | null
           created_at?: string
+          default_partner_commission_rate?: number | null
+          default_partner_id?: string | null
           document?: string | null
           email?: string | null
           id?: string
@@ -104,6 +110,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contacts_default_partner_id_fkey"
+            columns: ["default_partner_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contacts_legacy_form_submission_id_fkey"
             columns: ["legacy_form_submission_id"]

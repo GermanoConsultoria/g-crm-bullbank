@@ -566,6 +566,8 @@ function contact(partial: Partial<Contact> & { id: string; name: string }): Cont
     source: null,
     churned_at: null,
     churn_reason: null,
+    default_partner_id: null,
+    default_partner_commission_rate: null,
     document: null,
     segment: null,
     specialty: null,

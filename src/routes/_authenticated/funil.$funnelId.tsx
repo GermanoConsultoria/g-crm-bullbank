@@ -123,6 +123,22 @@ function FunnelBoardPage() {
     }
   }, [dealOpen, editingDeal, vendorId, currentUser, profiles]);
 
+  // Ao trocar o cliente de um negócio NOVO, pré-preenche parceiro indicador e
+  // taxa com o padrão cadastrado no cliente (default_partner_id /
+  // default_partner_commission_rate) — sempre sobrescreve ao trocar de
+  // cliente, mas o usuário pode editar livremente depois, igual à taxa de
+  // comissão do vendedor.
+  useEffect(() => {
+    if (!dealOpen || editingDeal) return;
+    const client = allContacts.find((c) => c.id === form.client_id);
+    setForm((p) => ({
+      ...p,
+      partner_id: client?.default_partner_id ?? "",
+      partner_commission_rate:
+        client?.default_partner_commission_rate != null ? String(client.default_partner_commission_rate) : "",
+    }));
+  }, [dealOpen, editingDeal, form.client_id, allContacts]);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["deals"] });
     queryClient.invalidateQueries({ queryKey: ["stages"] });

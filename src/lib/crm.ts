@@ -52,6 +52,8 @@ export type Stage = {
   name: string;
   position: number;
   color: string;
+  /** "ganho" | "perdido" nas colunas fixas do funil; NULL numa etapa normal. */
+  kind: string | null;
 };
 
 export type LeadType = {

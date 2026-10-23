@@ -77,10 +77,17 @@ function FunnelListPage() {
       }
       const nextPosition = Math.max(0, ...funnels.map((f) => f.position)) + 1;
       const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from("funnels")
-        .insert({ name, position: nextPosition, owner_id: vendorId ?? userData.user!.id });
+        .insert({ name, position: nextPosition, owner_id: vendorId ?? userData.user!.id })
+        .select()
+        .single();
       if (error) throw error;
+      const { error: stagesError } = await supabase.from("stages").insert([
+        { funnel_id: created.id, name: "Ganho", position: 1, color: "green", kind: "ganho" },
+        { funnel_id: created.id, name: "Perdido", position: 2, color: "red", kind: "perdido" },
+      ]);
+      if (stagesError) throw stagesError;
     },
     onSuccess: () => {
       invalidate();

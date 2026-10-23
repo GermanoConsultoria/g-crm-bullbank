@@ -310,6 +310,7 @@ export type Database = {
           created_at: string
           funnel_id: string
           id: string
+          kind: string | null
           name: string
           position: number
         }
@@ -318,6 +319,7 @@ export type Database = {
           created_at?: string
           funnel_id: string
           id?: string
+          kind?: string | null
           name: string
           position?: number
         }
@@ -326,6 +328,7 @@ export type Database = {
           created_at?: string
           funnel_id?: string
           id?: string
+          kind?: string | null
           name?: string
           position?: number
         }

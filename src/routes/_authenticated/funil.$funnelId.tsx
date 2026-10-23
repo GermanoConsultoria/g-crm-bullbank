@@ -101,6 +101,10 @@ function FunnelBoardPage() {
 
   const funnel = funnels.find((f) => f.id === funnelId);
   const stages = allStages.filter((s) => s.funnel_id === funnelId);
+  const normalStages = stages.filter((s) => !s.kind).sort((a, b) => a.position - b.position);
+  const wonStage = stages.find((s) => s.kind === "ganho");
+  const lostStage = stages.find((s) => s.kind === "perdido");
+  const orderedStages = [...normalStages, wonStage, lostStage].filter((s): s is NonNullable<typeof s> => !!s);
 
   const [dealOpen, setDealOpen] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -209,7 +213,7 @@ function FunnelBoardPage() {
         value: Number(form.value || 0),
         client_id: form.client_id || null,
         lead_type: form.lead_type,
-        stage_id: form.stage_id || stages[0]?.id || null,
+        stage_id: form.stage_id || normalStages[0]?.id || null,
         commission_rate,
         partner_id,
         partner_commission_rate,
@@ -263,7 +267,7 @@ function FunnelBoardPage() {
     mutationFn: async () => {
       const { error } = await supabase
         .from("stages")
-        .insert({ name: newStage, funnel_id: funnelId, position: (stages.at(-1)?.position ?? 0) + 1 });
+        .insert({ name: newStage, funnel_id: funnelId, position: (normalStages.at(-1)?.position ?? 0) + 1 });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -382,7 +386,7 @@ function FunnelBoardPage() {
                     onChange={(e) => setForm((p) => ({ ...p, stage_id: e.target.value }))}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    {stages.map((stage) => (
+                    {normalStages.map((stage) => (
                       <option key={stage.id} value={stage.id}>
                         {stage.name}
                       </option>
@@ -537,15 +541,24 @@ function FunnelBoardPage() {
       }
     >
       <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-slim">
-        {stages.map((stage) => {
-          const stageDeals = deals.filter((d) => d.stage_id === stage.id && d.status === "aberto");
+        {orderedStages.map((stage) => {
+          const stageDeals = deals.filter((d) => d.stage_id === stage.id);
           const total = stageDeals.reduce((s, d) => s + Number(d.value), 0);
+          const isFixed = !!stage.kind;
           return (
             <div
               key={stage.id}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
-                if (dragging) updateDeal.mutate({ id: dragging, patch: { stage_id: stage.id } });
+                if (dragging) {
+                  const patch =
+                    stage.kind === "ganho"
+                      ? { stage_id: stage.id, status: "ganho", closed_at: new Date().toISOString() }
+                      : stage.kind === "perdido"
+                        ? { stage_id: stage.id, status: "perdido", closed_at: new Date().toISOString() }
+                        : { stage_id: stage.id, status: "aberto", closed_at: null };
+                  updateDeal.mutate({ id: dragging, patch });
+                }
                 setDragging(null);
               }}
               className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-surface/60"
@@ -570,6 +583,11 @@ function FunnelBoardPage() {
                       <X className="size-3.5" />
                     </Button>
                   </div>
+                ) : isFixed ? (
+                  <>
+                    <span className="text-sm font-medium">{stage.name}</span>
+                    <span className="text-xs text-muted-foreground">{stageDeals.length}</span>
+                  </>
                 ) : (
                   <>
                     <button
@@ -645,32 +663,58 @@ function FunnelBoardPage() {
                       );
                     })()}
                     <div className="mt-2 flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-7 flex-1 text-xs"
-                        onClick={() =>
-                          updateDeal.mutate({
-                            id: deal.id,
-                            patch: { status: "ganho", closed_at: new Date().toISOString() },
-                          })
-                        }
-                      >
-                        Ganho
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 flex-1 text-xs"
-                        onClick={() =>
-                          updateDeal.mutate({
-                            id: deal.id,
-                            patch: { status: "perdido", closed_at: new Date().toISOString() },
-                          })
-                        }
-                      >
-                        Perdido
-                      </Button>
+                      {isFixed ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 flex-1 text-xs"
+                          onClick={() =>
+                            updateDeal.mutate({
+                              id: deal.id,
+                              patch: { status: "aberto", closed_at: null, stage_id: normalStages[0]?.id ?? null },
+                            })
+                          }
+                        >
+                          Reabrir
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 flex-1 text-xs"
+                            onClick={() =>
+                              updateDeal.mutate({
+                                id: deal.id,
+                                patch: {
+                                  status: "ganho",
+                                  closed_at: new Date().toISOString(),
+                                  stage_id: wonStage?.id ?? deal.stage_id,
+                                },
+                              })
+                            }
+                          >
+                            Ganho
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 flex-1 text-xs"
+                            onClick={() =>
+                              updateDeal.mutate({
+                                id: deal.id,
+                                patch: {
+                                  status: "perdido",
+                                  closed_at: new Date().toISOString(),
+                                  stage_id: lostStage?.id ?? deal.stage_id,
+                                },
+                              })
+                            }
+                          >
+                            Perdido
+                          </Button>
+                        </>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
